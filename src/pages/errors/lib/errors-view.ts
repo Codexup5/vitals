@@ -1,4 +1,4 @@
-import { CHART_KINDS, HEALTH_TEXTS, type HealthOverview, type HealthRange } from '@/entities/health';
+import { CHART_KINDS, HEALTH_TEXTS, type HealthOverview, type HealthRange } from '@/entities/event-log';
 import { getErrorMessage } from '@/shared/api/error-message';
 import { COMMON_TEXTS } from '@/shared/config/texts';
 import { formatCalendarDay, formatCalendarMonth } from '@/shared/lib/date';

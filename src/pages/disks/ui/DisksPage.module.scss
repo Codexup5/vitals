@@ -1,0 +1,244 @@
+.page {
+  max-width: var(--content-width);
+}
+
+.header,
+.group-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-5);
+  align-items: center;
+  justify-content: space-between;
+
+  h3 {
+    margin: 0;
+  }
+}
+
+.scan {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+
+  p {
+    margin: 0;
+  }
+}
+
+.muted {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+}
+
+.mono {
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.skeleton {
+  height: var(--chart-height);
+}
+
+.notice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+
+  p {
+    margin: 0;
+  }
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.kpi {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.kpi-value {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-title);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-semibold);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.volumes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.volume {
+  display: grid;
+  grid-template-columns: minmax(120px, auto) 1fr auto auto;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.volume-name {
+  font-weight: var(--font-weight-semibold);
+}
+
+.bar {
+  height: 12px;
+  border: 1px solid var(--color-border-control);
+  border-radius: var(--radius-sm);
+  background: linear-gradient(to right, var(--color-accent) var(--used), transparent var(--used));
+}
+
+.scroll {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-caption);
+
+  th,
+  td {
+    padding: var(--space-2);
+    border-bottom: 1px solid var(--color-border);
+    text-align: left;
+  }
+
+  th {
+    color: var(--color-text-muted);
+  }
+}
+
+.health {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+
+  &::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--color-text-muted);
+  }
+
+  &[data-health='healthy']::before {
+    background: var(--color-category-code);
+  }
+
+  &[data-health='warning']::before,
+  &[data-health='unhealthy']::before {
+    background: var(--color-danger);
+  }
+}
+
+.modes {
+  display: flex;
+  gap: var(--space-2);
+
+  button {
+    border: 1px solid var(--color-border-control);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg);
+    color: var(--color-text);
+  }
+
+  button[aria-pressed='true'] {
+    border-color: var(--color-accent);
+    background: var(--color-accent);
+    color: var(--color-on-accent);
+    font-weight: var(--font-weight-semibold);
+  }
+}
+
+.groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--space-4);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-top-width: 4px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+
+  &[data-group='safe'] {
+    border-top-color: var(--color-category-code);
+  }
+
+  &[data-group='review'] {
+    border-top-color: var(--color-category-caches);
+  }
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.row-main {
+  display: flex;
+  gap: var(--space-3);
+  justify-content: space-between;
+}
+
+.row-title {
+  font-weight: var(--font-weight-semibold);
+}
+
+.row-size {
+  white-space: nowrap;
+}
+
+.path {
+  font-size: var(--font-size-caption);
+  overflow-wrap: anywhere;
+}
+
+.reveal {
+  align-self: flex-start;
+}

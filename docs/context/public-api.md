@@ -15,6 +15,7 @@ Import by the direct file path.
 - `@/shared/config/query` — `STALE_POLICY`, `MAX_QUERY_RETRIES`, `REQUEST_TIMEOUT_MS`
 - `@/shared/config/texts` — `COMMON_TEXTS`
 - `@/shared/lib/date` — `parseIsoDateTime`, `fromUnixSeconds`, `formatDate`, `formatDateTime`, `formatCalendarDay`, `formatCalendarMonth`
+- `@/shared/lib/format-bytes` — `formatBytes`
 - `@/shared/lib/i18n` — `INTL_LOCALES`, `isLocale`, `detectLocale` · types: `Locale`, `Localized`
 - `@/shared/lib/preferences` — `parsePreferences`, `getPreferences`, `subscribePreferences`, `updatePreferences`, `initPreferences` · types: `Preferences`
 - `@/shared/lib/report-error` — `reportError`
@@ -23,10 +24,12 @@ Import by the direct file path.
 
 ## entities
 
-- **`@/entities/health`** — `CHART_KINDS`, `EVENT_KINDS`, `HEALTH_RANGE_DAYS`, `HEALTH_RANGES`, `HEALTH_TEXTS`, `useRevealMinidump`, `healthEventsQuery`, `healthOverviewQuery`, `minidumpsQuery`, `HEALTH_SEARCH_DEFAULTS`, `healthSearchSchema` · types: `EventKind`, `HealthEventPage`, `HealthOverview`, `HealthPeriod`, `HealthRange`, `Minidump`
+- **`@/entities/disk`** — `CATEGORIES`, `DISK_TEXTS`, `disksOverviewQuery`, `scanStatusQuery`, `useRevealPath`, `useScanFinished`, `useStartScan` · types: `Candidate`, `CandidateGroup`, `Category`, `DiskHealth`, `DisksOverview`, `ScanStatus`, `Tile`
+- **`@/entities/event-log`** — `CHART_KINDS`, `EVENT_KINDS`, `HEALTH_RANGE_DAYS`, `HEALTH_RANGES`, `HEALTH_TEXTS`, `useRevealMinidump`, `healthEventsQuery`, `healthOverviewQuery`, `minidumpsQuery`, `HEALTH_SEARCH_DEFAULTS`, `healthSearchSchema` · types: `EventKind`, `HealthEventPage`, `HealthOverview`, `HealthPeriod`, `HealthRange`, `Minidump`
 
 ## pages
 
+- **`@/pages/disks`** — `DisksPage`
 - **`@/pages/errors`** — `ErrorsPage`
 - **`@/pages/module`** — `ModulePage`
 - **`@/pages/not-found`** — `NotFoundPage`

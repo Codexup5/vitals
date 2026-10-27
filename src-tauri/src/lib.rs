@@ -1,10 +1,13 @@
 mod app_paths;
+mod cleanup;
 mod collector;
 mod commands;
+mod disks;
 mod dumps;
 mod events;
 mod import;
 mod logging;
+mod scan;
 mod storage;
 mod system;
 mod tray;
@@ -29,13 +32,18 @@ pub fn run() -> ExitCode {
             commands::health_overview,
             commands::health_events,
             commands::minidumps,
-            commands::reveal_minidump
+            commands::reveal_minidump,
+            commands::disks::disks_overview,
+            commands::disks::scan_start,
+            commands::disks::scan_status,
+            commands::disks::reveal_path
         ])
         .setup(|app| {
             let data_dir = app_paths::ensure_data_dir()?;
             logging::init(&data_dir);
             app.manage(commands::AppState {
                 db_path: data_dir.join(storage::DB_FILE),
+                scan: std::sync::Arc::default(),
             });
             let is_russian = system::windows::ui_language_is_russian();
             tray::create(app.handle(), is_russian)?;

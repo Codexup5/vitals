@@ -4,7 +4,10 @@
     reason = "tauri deserializes command arguments and state into owned values"
 )]
 
+pub mod disks;
+
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use chrono::{Days, Local, NaiveDate};
 use serde::Serialize;
@@ -22,6 +25,7 @@ const MAX_RANGE_DAYS: u32 = 366;
 #[derive(Debug)]
 pub struct AppState {
     pub db_path: PathBuf,
+    pub scan: Arc<crate::scan::job::ScanJob>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -49,7 +53,7 @@ impl Serialize for CommandError {
     }
 }
 
-fn open(state: &AppState) -> Result<Storage, CommandError> {
+pub(crate) fn open(state: &AppState) -> Result<Storage, CommandError> {
     Ok(Storage::open(&state.db_path)?)
 }
 

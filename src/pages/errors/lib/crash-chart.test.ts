@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { HealthPeriod } from '@/entities/health';
+import type { HealthPeriod } from '@/entities/event-log';
 
 import { CHART_HEIGHT, niceCeiling, toCrashChart } from './crash-chart';
 
