@@ -7,10 +7,12 @@ mod dumps;
 mod events;
 mod import;
 mod logging;
+mod process;
 mod scan;
 mod storage;
 mod system;
 mod tray;
+mod updates;
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -43,7 +45,12 @@ pub fn run() -> ExitCode {
             commands::disks::scan_status,
             commands::disks::reveal_path,
             commands::disks::cleanup_preview,
-            commands::disks::cleanup_run
+            commands::disks::cleanup_run,
+            commands::updates::updates_status,
+            commands::updates::updates_check,
+            commands::updates::updates_run,
+            commands::updates::updates_tools,
+            commands::updates::open_update_tool
         ])
         .setup(|app| {
             let data_dir = app_paths::ensure_data_dir()?;
@@ -53,6 +60,7 @@ pub fn run() -> ExitCode {
                 data_dir: data_dir.clone(),
                 scan: std::sync::Arc::default(),
                 plan: std::sync::Mutex::default(),
+                updates: std::sync::Arc::default(),
             });
             let is_russian = system::windows::ui_language_is_russian();
             tray::create(app.handle(), is_russian)?;

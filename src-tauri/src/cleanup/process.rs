@@ -2,8 +2,7 @@
 //! with fixed arguments, no shell string built from data, and a deadline.
 
 use std::path::Path;
-use std::process::{Command, Stdio};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use super::{CandidateKind, docker};
 use crate::scan::{Progress, WalkOptions, walk};
@@ -13,34 +12,10 @@ const COMMAND_TIMEOUT: Duration = Duration::from_secs(15 * 60);
 
 /// Runs a program with a deadline; its standard output on success.
 pub fn run(program: &str, args: &[&str], timeout: Duration) -> Option<String> {
-    let mut command = Command::new(program);
-    command
-        .args(args)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null());
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        // CREATE_NO_WINDOW: a console tool must not flash a window over the panel
-        command.creation_flags(0x0800_0000);
-    }
-    let mut child = command.spawn().ok()?;
-    let started = Instant::now();
-    loop {
-        match child.try_wait() {
-            Ok(Some(status)) if status.success() => break,
-            Ok(Some(_)) | Err(_) => return None,
-            Ok(None) if started.elapsed() > timeout => {
-                if let Err(error) = child.kill() {
-                    tracing::warn!("could not stop {program} past its deadline: {error}");
-                }
-                return None;
-            }
-            Ok(None) => std::thread::sleep(Duration::from_millis(100)),
-        }
-    }
-    let output = child.wait_with_output().ok()?;
-    String::from_utf8(output.stdout).ok()
+    crate::process::output(program, args, timeout)
+        .ok()
+        .filter(|output| output.code == 0)
+        .map(|output| output.stdout)
 }
 
 /// The program and arguments that clean a candidate kind, if a tool does it.
