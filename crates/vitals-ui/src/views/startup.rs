@@ -100,7 +100,7 @@ fn impact_detail(impact: &StartupImpact, locale: Locale) -> String {
     (texts.impact_detail)(&cpu, &disk, impact.boots)
 }
 
-fn signature_badge(state: SignatureState, locale: Locale) -> Badge {
+pub fn signature_badge(state: SignatureState, locale: Locale) -> Badge {
     let texts = &locale.texts().startup;
     match state {
         SignatureState::Valid => (texts.signature_valid, Tone::Ok),
@@ -112,9 +112,14 @@ fn signature_badge(state: SignatureState, locale: Locale) -> Badge {
 }
 
 /// The signer when the signature holds; else what the file says of itself, said to be unverified.
-fn publisher_of(entry: &StartupEntry, locale: Locale) -> String {
+pub fn publisher_of(
+    signer: Option<&String>,
+    signature: SignatureState,
+    company: Option<&String>,
+    locale: Locale,
+) -> String {
     let texts = &locale.texts().startup;
-    match (&entry.signer, entry.signature, &entry.company) {
+    match (signer, signature, company) {
         (Some(signer), SignatureState::Valid, _) => signer.clone(),
         (_, _, Some(company)) => (texts.publisher_unverified)(company),
         _ => texts.publisher_unknown.to_owned(),
@@ -167,7 +172,12 @@ fn row_of(entry: &StartupEntry, locale: Locale) -> StartupRow {
             .as_ref()
             .map(|impact| impact_detail(impact, locale)),
         signature: signature_badge(entry.signature, locale),
-        publisher: publisher_of(entry, locale),
+        publisher: publisher_of(
+            entry.signer.as_ref(),
+            entry.signature,
+            entry.company.as_ref(),
+            locale,
+        ),
         action,
     }
 }

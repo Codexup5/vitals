@@ -36,6 +36,8 @@ pub mod command {
     pub const DEVICES_SCAN: &str = "devices_scan";
     pub const STARTUP_OVERVIEW: &str = "startup_overview";
     pub const STARTUP_SET: &str = "startup_set";
+    pub const SERVICES_OVERVIEW: &str = "services_overview";
+    pub const SERVICE_SET: &str = "service_set";
     pub const LOG_UI_ERROR: &str = "log_ui_error";
 }
 
@@ -910,6 +912,70 @@ pub enum ChangeOutcome {
     Done,
     /// The user said no at the UAC prompt: nothing changed
     Declined,
+}
+
+/// When Windows starts a service.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum StartType {
+    Automatic,
+    /// Automatic, a couple of minutes after the sign-in
+    AutomaticDelayed,
+    /// When a program or a trigger asks for it
+    Manual,
+    Disabled,
+}
+
+impl StartType {
+    /// Starts by itself with Windows
+    #[must_use]
+    pub const fn is_automatic(self) -> bool {
+        matches!(self, Self::Automatic | Self::AutomaticDelayed)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ServiceState {
+    Running,
+    Stopped,
+    /// Starting, stopping, pausing or paused
+    Changing,
+}
+
+/// A Windows service, with who made it and what the panel may do with it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Service {
+    /// The key name: `Docker Desktop Service`, `wuauserv`
+    pub name: String,
+    pub display_name: String,
+    pub description: Option<String>,
+    pub start: StartType,
+    pub state: ServiceState,
+    /// The exe, or the DLL of a service hosted by `svchost.exe`
+    pub image: Option<PathBuf>,
+    pub signature: SignatureState,
+    pub signer: Option<String>,
+    pub company: Option<String>,
+    /// Microsoft's or a part of Windows: shown, never changed (the brief, §1 p.15)
+    pub is_microsoft: bool,
+    /// The start type before the panel changed it: "Restore" brings it back
+    pub changed_from: Option<StartType>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServicesOverview {
+    pub services: Vec<Service>,
+}
+
+/// Off is "start when asked" (`Manual`); restore is the start type the panel saved.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServiceSetArgs {
+    pub name: String,
+    pub restore: bool,
 }
 
 #[cfg(test)]

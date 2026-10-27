@@ -30,6 +30,7 @@ fn action_of(name: &str) -> Option<Perform> {
     match name {
         crate::cleanup::elevated::ACTION => Some(crate::cleanup::elevated::perform),
         crate::startup::elevated::ACTION => Some(crate::startup::elevated::perform),
+        crate::services::elevated::ACTION => Some(crate::services::elevated::perform),
         _ => None,
     }
 }
