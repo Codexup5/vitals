@@ -199,7 +199,7 @@ fn Minidumps(locale: Signal<Locale>) -> impl IntoView {
         spawn_local(async move {
             let answer: Result<(), IpcError> =
                 ipc::call(command::REVEAL_MINIDUMP, &RevealMinidumpArgs { name }).await;
-            reveal_failed.set(answer.is_err());
+            reveal_failed.try_set(answer.is_err());
         });
     };
     view! {

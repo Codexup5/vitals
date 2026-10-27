@@ -1,12 +1,14 @@
 //! The disks screen: the counters, the volumes, the drives, the treemap of the home and the cleanup preview. The
 //! scan runs in the core; while it runs the screen asks how far it got once a second.
 
+use std::collections::BTreeSet;
 use std::time::Duration;
 
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use vitals_ipc::{Category, DisksOverview, RevealPathArgs, ScanStatus, command};
+use vitals_ipc::{Candidate, Category, DisksOverview, RevealPathArgs, ScanStatus, command};
 
+use super::cleanup::{CleanupBar, Stage};
 use super::widgets::{Eyebrow, Failure, Tag};
 use crate::i18n::Locale;
 use crate::ipc::{self, IpcError};
@@ -20,6 +22,16 @@ const SYSTEM_DRIVE: &str = "C";
 const SCAN_POLL: Duration = Duration::from_secs(1);
 
 type Answer<T> = LocalResource<Result<T, IpcError>>;
+
+/// The cleanup candidates of the last scan, or none before the first scan
+fn candidates_of(overview: Answer<DisksOverview>) -> Vec<Candidate> {
+    overview
+        .get()
+        .and_then(Result::ok)
+        .and_then(|overview| overview.scan)
+        .map(|scan| scan.candidates)
+        .unwrap_or_default()
+}
 
 fn is_running(status: Answer<ScanStatus>) -> bool {
     status
@@ -55,6 +67,16 @@ fn watch_scan(overview: Answer<DisksOverview>) -> Answer<ScanStatus> {
     status
 }
 
+/// Opens Explorer on a path of the last scan; a failure is shown by the recommendations
+fn reveal_path(path: String, failed: RwSignal<bool>) {
+    spawn_local(async move {
+        let answer: Result<(), IpcError> =
+            ipc::call(command::REVEAL_PATH, &RevealPathArgs { path }).await;
+        // The page may be gone by the time Explorer answers
+        failed.try_set(answer.is_err());
+    });
+}
+
 #[component]
 pub fn DisksPage() -> impl IntoView {
     let store = PreferencesStore::get();
@@ -68,23 +90,22 @@ pub fn DisksPage() -> impl IntoView {
     let scan_failed = RwSignal::new(false);
     let reveal_failed = RwSignal::new(false);
     let mode = RwSignal::new(TreemapMode::Category);
+    let selected = RwSignal::new(BTreeSet::<String>::new());
+    let stage = RwSignal::new(Stage::Idle);
+    let candidates = Signal::derive(move || candidates_of(overview));
 
     let start_scan = move || {
         is_starting.set(true);
         spawn_local(async move {
             let answer: Result<bool, IpcError> = ipc::call(command::SCAN_START, &()).await;
-            scan_failed.set(answer.is_err());
-            is_starting.set(false);
-            status.refetch();
+            // The page may be gone by the time the core answers: then there is nothing to update
+            if scan_failed.try_set(answer.is_err()).is_none() {
+                is_starting.set(false);
+                status.refetch();
+            }
         });
     };
-    let reveal = move |path: String| {
-        spawn_local(async move {
-            let answer: Result<(), IpcError> =
-                ipc::call(command::REVEAL_PATH, &RevealPathArgs { path }).await;
-            reveal_failed.set(answer.is_err());
-        });
-    };
+    let reveal = move |path: String| reveal_path(path, reveal_failed);
     let view_model = move || {
         let answer = overview.get();
         let status = status.get().and_then(Result::ok);
@@ -143,7 +164,16 @@ pub fn DisksPage() -> impl IntoView {
                         {has_scan
                             .then(|| {
                                 view! {
-                                    <Recommendations groups=recommendations reveal_failed reveal locale=locale() />
+                                    <Recommendations
+                                        groups=recommendations
+                                        reveal_failed
+                                        reveal
+                                        selected
+                                        stage
+                                        candidates
+                                        on_cleaned=move || overview.refetch()
+                                        locale=Signal::derive(locale)
+                                    />
                                 }
                             })}
                     }
@@ -442,12 +472,24 @@ fn Recommendations(
     groups: Vec<RecommendationGroup>,
     reveal_failed: RwSignal<bool>,
     reveal: impl Fn(String) + Copy + 'static,
-    locale: Locale,
+    selected: RwSignal<BTreeSet<String>>,
+    stage: RwSignal<Stage>,
+    candidates: Signal<Vec<Candidate>>,
+    on_cleaned: impl Fn() + Copy + Send + Sync + 'static,
+    locale: Signal<Locale>,
 ) -> impl IntoView {
-    let texts = &locale.texts().disks;
+    let texts = &locale.get_untracked().texts().disks;
+    let toggle = move |id: &str| {
+        selected.update(|selected| {
+            if !selected.remove(id) {
+                selected.insert(id.to_owned());
+            }
+        });
+    };
     view! {
         <section class="section" aria-labelledby="recommendations-title">
             <h2 id="recommendations-title">{texts.recommendations_title}</h2>
+            <CleanupBar candidates selected stage on_cleaned locale />
             {move || reveal_failed.get().then(|| view! { <p role="alert" class="muted">{texts.reveal_failed}</p> })}
             <div class="groups">
                 {groups
@@ -475,10 +517,29 @@ fn Recommendations(
                                         .rows
                                         .into_iter()
                                         .map(|row| {
+                                            let id = row.id.clone();
+                                            let checked_id = row.id.clone();
                                             view! {
                                                 <li class="row">
                                                     <div class="row-main">
-                                                        <span class="row-title">{row.title}</span>
+                                                        {if row.is_selectable {
+                                                            view! {
+                                                                <label class="row-check">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        prop:checked=move || selected.with(|selected| selected.contains(&checked_id))
+                                                                        on:change=move |_| toggle(&id)
+                                                                    />
+                                                                    <span class="row-title">{row.title}</span>
+                                                                </label>
+                                                            }
+                                                                .into_any()
+                                                        } else {
+                                                            view! {
+                                                                <span class="row-title">{row.title} " " <Tag tone=Tone::Accent>{texts.manual}</Tag></span>
+                                                            }
+                                                                .into_any()
+                                                        }}
                                                         <span class="mono nowrap">{row.size}</span>
                                                     </div>
                                                     <span class="muted">{row.hint}</span>

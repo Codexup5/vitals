@@ -5,12 +5,24 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 use tauri::State;
-use vitals_ipc::{DisksOverview, ScanResult, ScanStatus};
+use vitals_ipc::{CleanupPreview, CleanupReport, DisksOverview, ScanResult, ScanStatus};
 
 use super::{AppState, CommandError, open};
-use crate::cleanup::Places;
+use crate::cleanup::{Places, plan};
+
+fn places() -> Result<Places, CommandError> {
+    if let Some(root) = crate::app_paths::e2e_root() {
+        return Ok(Places::under(&root));
+    }
+    let home = home()?;
+    Places::from_env(home.clone(), code_roots(&home))
+        .ok_or_else(|| CommandError::Invalid("LOCALAPPDATA or APPDATA is not set".to_owned()))
+}
 
 fn home() -> Result<PathBuf, CommandError> {
+    if let Some(root) = crate::app_paths::e2e_root() {
+        return Ok(Places::under(&root).home);
+    }
     std::env::var_os("USERPROFILE")
         .map(PathBuf::from)
         .ok_or_else(|| CommandError::Invalid("USERPROFILE is not set".to_owned()))
@@ -44,8 +56,7 @@ pub fn disks_overview(state: State<'_, AppState>) -> Result<DisksOverview, Comma
 #[tauri::command]
 pub fn scan_start(state: State<'_, AppState>) -> Result<bool, CommandError> {
     let home = home()?;
-    let places = Places::from_env(code_roots(&home))
-        .ok_or_else(|| CommandError::Invalid("LOCALAPPDATA is not set".to_owned()))?;
+    let places = places()?;
     let db_path = state.db_path.clone();
     Ok(Arc::clone(&state.scan).start(home, places, move |result| {
         let stored = serde_json::to_string(&result)
@@ -95,4 +106,64 @@ pub fn reveal_path(state: State<'_, AppState>, path: &str) -> Result<(), Command
         .arg(argument)
         .spawn()?;
     Ok(())
+}
+
+/// Lists what the checked candidates of the last scan will delete. The plan stays in memory until the run.
+#[tauri::command(async)]
+pub fn cleanup_preview(
+    state: State<'_, AppState>,
+    ids: Vec<String>,
+) -> Result<CleanupPreview, CommandError> {
+    let scan =
+        latest_scan(&state)?.ok_or_else(|| CommandError::Invalid("no scan yet".to_owned()))?;
+    let chosen: Vec<_> = scan
+        .candidates
+        .into_iter()
+        .filter(|candidate| ids.contains(&candidate.id))
+        .collect();
+    if chosen.is_empty() {
+        return Err(CommandError::Invalid(
+            "no candidate of the last scan was chosen".to_owned(),
+        ));
+    }
+    let plan_id = u64::try_from(chrono::Utc::now().timestamp_micros()).unwrap_or_default();
+    let plan = plan::preview(plan_id, &chosen, &places()?, std::time::SystemTime::now());
+    let summary = plan.summary();
+    *state
+        .plan
+        .lock()
+        .map_err(|_| CommandError::Invalid("the plan is poisoned".to_owned()))? = Some(plan);
+    Ok(summary)
+}
+
+/// Executes the preview with this id, logs it and takes what it freed off the stored scan.
+#[tauri::command(async)]
+pub fn cleanup_run(
+    state: State<'_, AppState>,
+    plan_id: u64,
+) -> Result<CleanupReport, CommandError> {
+    let plan = state
+        .plan
+        .lock()
+        .map_err(|_| CommandError::Invalid("the plan is poisoned".to_owned()))?
+        .take()
+        .filter(|plan| plan.id == plan_id)
+        .ok_or_else(|| CommandError::Invalid(format!("no preview {plan_id}: preview again")))?;
+    let report = plan::run(
+        &plan,
+        &places()?,
+        &state.data_dir,
+        chrono::Utc::now().timestamp(),
+    );
+    if let Err(error) = plan::log(&report, &state.data_dir) {
+        tracing::error!("the cleanup was not logged: {error}");
+    }
+    if let Some(mut scan) = latest_scan(&state)? {
+        plan::shrink(&mut scan.candidates, &report);
+        match serde_json::to_string(&scan) {
+            Ok(body) => open(&state)?.put_scan(scan.finished_at, &body)?,
+            Err(error) => tracing::warn!("the scan was not updated after the cleanup: {error}"),
+        }
+    }
+    Ok(report)
 }
