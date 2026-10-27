@@ -113,7 +113,8 @@
   "cyrillic": {
     "allow": [
       "crates/vitals-ui/src/texts.rs",
-      "src-tauri/src/tray.rs"
+      "src-tauri/src/tray.rs",
+      "src-tauri/src/alerts/texts.rs"
     ]
   },
   "frozen": [],

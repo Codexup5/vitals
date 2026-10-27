@@ -1,3 +1,4 @@
+mod alerts;
 mod app_paths;
 mod cleanup;
 mod collector;
@@ -70,7 +71,13 @@ pub fn run() -> ExitCode {
             commands::startup::startup_overview,
             commands::startup::startup_set,
             commands::startup::services_overview,
-            commands::startup::service_set
+            commands::startup::service_set,
+            commands::alerts::alerts_status,
+            commands::alerts::alerts_save_bot,
+            commands::alerts::alerts_import_legacy,
+            commands::alerts::alerts_forget_bot,
+            commands::alerts::alerts_test,
+            commands::alerts::alerts_set_sending
         ])
         .setup(|app| {
             let data_dir = app_paths::ensure_data_dir()?;
@@ -149,9 +156,14 @@ fn start_collector(app: AppHandle, data_dir: PathBuf, is_russian: bool) {
                 }
             }
             let mut collector = Collector::new(storage);
+            let db_path = data_dir.join(storage::DB_FILE);
             loop {
                 match collector.run_once(Utc::now()) {
-                    Ok(summary) => tray::show_summary(&app, &summary, is_russian),
+                    Ok(summary) => {
+                        tray::show_summary(&app, &summary, is_russian);
+                        #[cfg(windows)]
+                        alerts::check(&db_path, &data_dir, is_russian, Utc::now().timestamp());
+                    }
                     Err(error) => {
                         tracing::error!("the collector run failed: {error}");
                         if let Ok(summary) = collector.summary(Local::now().date_naive()) {
