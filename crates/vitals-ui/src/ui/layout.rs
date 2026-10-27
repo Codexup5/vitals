@@ -1,4 +1,5 @@
-//! The window frame: the brand, the navigation over the seven modules, the language and theme switches.
+//! The window frame: the brand, the navigation over the seven modules and the settings, the language and theme
+//! switches.
 
 use leptos::prelude::*;
 use leptos_router::components::{A, Outlet};
@@ -50,6 +51,13 @@ pub fn Layout(children: Children) -> impl IntoView {
                                 }
                             })
                             .collect_view()}
+                    </ul>
+                    <ul class="nav nav-settings">
+                        <li>
+                            <A href="/settings" attr:class="nav-link">
+                                {move || texts().settings}
+                            </A>
+                        </li>
                     </ul>
                 </nav>
                 <section class="preferences" aria-label=move || texts().preferences>

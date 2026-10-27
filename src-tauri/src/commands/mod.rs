@@ -4,6 +4,7 @@
     reason = "tauri deserializes command arguments and state into owned values"
 )]
 
+pub mod alerts;
 pub mod disks;
 pub mod network;
 pub mod runners;
