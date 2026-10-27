@@ -55,6 +55,11 @@ const MIGRATIONS: &[&str] = &[
        first_seen INTEGER NOT NULL,
        last_seen INTEGER NOT NULL
      );",
+    "CREATE TABLE service_changes (
+       name TEXT PRIMARY KEY,
+       original TEXT NOT NULL,
+       changed_at INTEGER NOT NULL
+     );",
 ];
 
 pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {

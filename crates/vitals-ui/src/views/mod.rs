@@ -5,5 +5,6 @@ pub mod disks;
 pub mod errors;
 pub mod network;
 pub mod runners;
+pub mod services;
 pub mod startup;
 pub mod updates;

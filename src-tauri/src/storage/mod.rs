@@ -3,6 +3,7 @@
 mod network;
 pub mod queries;
 mod schema;
+mod services;
 
 use std::path::Path;
 pub use vitals_ipc::DayCounts;

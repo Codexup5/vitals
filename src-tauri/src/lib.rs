@@ -12,6 +12,7 @@ mod network;
 mod process;
 mod runners;
 mod scan;
+mod services;
 mod startup;
 mod storage;
 mod system;
@@ -67,7 +68,9 @@ pub fn run() -> ExitCode {
             commands::network::speed_test_start,
             commands::network::speed_test_status,
             commands::startup::startup_overview,
-            commands::startup::startup_set
+            commands::startup::startup_set,
+            commands::startup::services_overview,
+            commands::startup::service_set
         ])
         .setup(|app| {
             let data_dir = app_paths::ensure_data_dir()?;

@@ -149,7 +149,7 @@ pub fn resolve_candidate(candidate: &str, windows_dir: &Path) -> Option<PathBuf>
         .find(|path| path.is_file())
 }
 
-fn env_lookup(name: &str) -> Option<String> {
+pub fn env_lookup(name: &str) -> Option<String> {
     std::env::var(name).ok()
 }
 
