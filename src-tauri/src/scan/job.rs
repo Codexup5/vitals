@@ -4,12 +4,11 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::SystemTime;
+pub use vitals_ipc::{ScanResult, Tile};
 
-use serde::{Deserialize, Serialize};
-
-use super::category::{Category, category_of};
+use super::category::category_of;
 use super::{Node, Progress, WalkOptions, walk};
-use crate::cleanup::{Candidate, Places, find_candidates};
+use crate::cleanup::{Places, find_candidates};
 
 /// home → `AppData` → `Local` → a program folder is the deepest level a tile comes from
 const KEEP_DEPTH: usize = 3;
@@ -21,31 +20,6 @@ const EXPANDED: &[&str] = &[
     "appdata/roaming",
     "appdata/locallow",
 ];
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Tile {
-    pub path: PathBuf,
-    /// The path from the home, `AppData\Local\pnpm`
-    pub label: String,
-    pub bytes: u64,
-    pub category: Category,
-    /// Several small folders of one category shown as one tile
-    pub is_rest: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ScanResult {
-    pub finished_at: i64,
-    pub home: PathBuf,
-    pub total_bytes: u64,
-    pub files: u64,
-    pub links: u64,
-    pub unreadable: u64,
-    pub tiles: Vec<Tile>,
-    pub candidates: Vec<Candidate>,
-}
 
 #[derive(Debug, Default)]
 pub struct ScanJob {
@@ -193,6 +167,7 @@ impl ScanJob {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::scan::category::Category;
 
     fn node(path: &str, bytes: u64, children: Vec<Node>) -> Node {
         Node {

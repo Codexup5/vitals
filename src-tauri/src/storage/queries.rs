@@ -2,40 +2,12 @@
 
 use chrono::{DateTime, NaiveDate, Utc};
 use rusqlite::{OptionalExtension, ToSql, params, params_from_iter};
-use serde::Serialize;
+pub use vitals_ipc::{DayRow, EventPage, EventRow};
 
 use super::{DayCounts, Storage, StorageError, day_text, parse_day};
 
 /// The kinds of the feed filter: the stored kinds plus `error`, a System error of no known kind.
 pub const PLAIN_ERROR: &str = "error";
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DayRow {
-    pub day: String,
-    #[serde(flatten)]
-    pub counts: DayCounts,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EventRow {
-    pub time: i64,
-    pub log: String,
-    pub provider: String,
-    pub event_id: u32,
-    pub level: u8,
-    /// A known kind, or `error`
-    pub kind: String,
-    pub detail: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EventPage {
-    pub items: Vec<EventRow>,
-    pub total: u32,
-}
 
 /// When a BSOD was logged, and its bugcheck code
 pub type BsodTime = (DateTime<Utc>, Option<String>);

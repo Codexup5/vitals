@@ -1,300 +1,144 @@
 {
   "gates": {
-    "place": [
-      {
-        "id": "placement",
-        "match": "src/**",
-        "run": [
-          "node",
-          "tooling/placement.mjs",
-          "{file}"
-        ]
-      }
-    ],
     "edit": [
       {
-        "id": "prettier",
-        "match": "**/*.{ts,tsx,js,mjs,scss,json,md,yml,yaml,html}",
+        "id": "rustfmt",
+        "match": "**/*.rs",
         "blocking": false,
         "run": [
-          "prettier",
-          "--write",
-          "--ignore-unknown",
-          "--log-level=warn",
-          "{file}"
-        ]
-      },
-      {
-        "id": "eslint",
-        "match": "**/*.{ts,tsx,js,mjs}",
-        "modes": [
-          "canon",
-          "strict"
-        ],
-        "run": [
-          "node",
-          "tooling/eslint.mjs",
-          "--fix",
-          "--cache",
-          "--cache-strategy",
-          "content",
-          "--cache-location",
-          "node_modules/.cache/eslint/",
-          "--max-warnings=0",
-          "--no-warn-ignored",
-          "{file}"
-        ]
-      },
-      {
-        "id": "stylelint",
-        "match": "**/*.scss",
-        "modes": [
-          "canon",
-          "strict"
-        ],
-        "run": [
-          "node",
-          "tooling/debt/debt.mjs",
-          "stylelint",
-          "--fix",
+          "rustfmt",
+          "--edition",
+          "2024",
           "{file}"
         ]
       }
     ],
     "stop": [
       {
-        "id": "typecheck",
+        "id": "clippy",
         "when": [
-          "src/**",
-          "mocks/**",
-          "tooling/**",
-          "server/**",
-          "api/**"
+          "**/*.rs",
+          "**/Cargo.toml"
         ],
         "run": [
-          "node",
-          "scripts/tsc-baseline.mjs"
+          "cargo",
+          "clippy",
+          "--workspace",
+          "--all-targets",
+          "--locked",
+          "--",
+          "-D",
+          "warnings"
         ]
       },
       {
-        "id": "steiger",
+        "id": "design",
         "when": [
-          "src/**",
-          "mocks/**",
-          "tooling/**"
+          "crates/vitals-ui/styles/**",
+          "crates/vitals-ui/tokens/**",
+          "xtask/**"
         ],
         "run": [
-          "node",
-          "tooling/debt/debt.mjs",
-          "steiger"
-        ]
-      },
-      {
-        "id": "design-tokens",
-        "when": "src/shared/styles/**",
-        "run": [
-          "node",
-          "tooling/design/tokens.mjs",
-          "--check"
-        ]
-      },
-      {
-        "id": "csp",
-        "when": [
-          "csp.json",
-          "index.html",
-          "tooling/security/**"
-        ],
-        "run": [
-          "node",
-          "tooling/security/check-csp.mjs"
-        ]
-      },
-      {
-        "id": "vitest-related",
-        "match": "**/*.{ts,tsx,js,mjs}",
-        "modes": [
-          "strict"
-        ],
-        "run": [
-          "vitest",
-          "related",
-          "--run",
-          "{files}"
+          "cargo",
+          "xtask",
+          "check"
         ]
       }
     ],
     "step": [
       {
-        "id": "eslint",
-        "match": "**/*.{ts,tsx,js,mjs}",
-        "run": [
-          "node",
-          "tooling/eslint.mjs",
-          "--cache",
-          "--cache-strategy",
-          "content",
-          "--cache-location",
-          "node_modules/.cache/eslint/",
-          "--max-warnings=0",
-          "--no-warn-ignored",
-          "{files}"
-        ]
-      },
-      {
-        "id": "typecheck",
-        "when": "**/*.{ts,tsx}",
-        "run": [
-          "node",
-          "scripts/tsc-baseline.mjs"
-        ]
-      },
-      {
-        "id": "context",
-        "when": "src/**/*.{ts,tsx,js,mjs}",
-        "run": [
-          "node",
-          "scripts/gen-context.mjs",
-          "--check"
-        ]
-      },
-      {
-        "id": "canon",
+        "id": "clippy",
         "when": [
-          ".claude/rules/**",
-          "docs/gates.md",
-          ".claude/skills/**"
+          "**/*.rs",
+          "**/Cargo.toml"
         ],
         "run": [
-          "node",
-          "scripts/gen-canon.mjs",
-          "--check"
+          "cargo",
+          "clippy",
+          "--workspace",
+          "--all-targets",
+          "--locked",
+          "--",
+          "-D",
+          "warnings"
         ]
       },
       {
-        "id": "design-tokens",
-        "when": "src/shared/styles/**",
-        "run": [
-          "node",
-          "tooling/design/tokens.mjs",
-          "--check"
-        ]
-      },
-      {
-        "id": "csp",
+        "id": "clippy-wasm",
         "when": [
-          "csp.json",
-          "index.html",
-          "tooling/security/**"
+          "crates/vitals-ui/**",
+          "crates/vitals-ipc/**"
         ],
         "run": [
-          "node",
-          "tooling/security/check-csp.mjs"
+          "cargo",
+          "clippy",
+          "-p",
+          "vitals-ui",
+          "--target",
+          "wasm32-unknown-unknown",
+          "--locked",
+          "--",
+          "-D",
+          "warnings"
         ]
       },
       {
-        "id": "vitest-related",
-        "match": "**/*.{ts,tsx,js,mjs}",
+        "id": "design",
+        "when": [
+          "crates/vitals-ui/styles/**",
+          "crates/vitals-ui/tokens/**",
+          "xtask/**"
+        ],
+        "run": [
+          "cargo",
+          "xtask",
+          "check"
+        ]
+      },
+      {
+        "id": "test",
+        "when": [
+          "**/*.rs"
+        ],
         "skipInTestStep": true,
-        "cap": true,
         "run": [
-          "vitest",
-          "related",
-          "--run",
-          "{files}"
-        ]
-      }
-    ],
-    "oracle": [
-      {
-        "id": "vitest-oracle",
-        "match": "**/*.oracle.test.{ts,tsx,js}",
-        "run": [
-          "vitest",
-          "run",
-          "{files}"
+          "cargo",
+          "test",
+          "--workspace",
+          "--locked"
         ]
       }
     ]
   },
   "cyrillic": {
     "allow": [
-      "src/**/config/texts.ts",
-      "src/**/*.test.{ts,tsx}",
-      "e2e/**",
-      "mocks/**",
-      ".claude/evals/**/prompt.md"
+      "crates/vitals-ui/src/texts.rs",
+      "src-tauri/src/tray.rs"
     ]
   },
-  "frozen": [
-    "e2e/**",
-    "**/*.test.*"
-  ],
+  "frozen": [],
   "canon": [
     "**/.claude/rules/**",
     "**/CLAUDE.md",
     "**/kit.json",
-    "**/eslint.config.js",
-    "**/tooling/eslint-plugin-architecture/**",
-    "**/stylelint.config.mjs",
-    "**/steiger.config.mjs",
-    "**/knip.json",
-    "prettier.config.mjs",
-    "commitlint.config.js",
-    "**/lint-staged.config.js",
-    ".husky/**",
     "**/.claude/settings.json",
-    "**/tsconfig*.json"
+    "Cargo.toml",
+    "clippy.toml",
+    "**/Trunk.toml"
   ],
   "forbid": [
     {
-      "id": "skip",
-      "pattern": "[.](skip|todo)([.]each|If)?[(]",
+      "id": "ignore",
+      "pattern": "#\\[ignore",
       "match": [
-        "**/*.{ts,tsx,js,mjs}"
-      ]
-    },
-    {
-      "id": "only",
-      "pattern": "[.]only([.]each)?[(]",
-      "match": [
-        "**/*.{ts,tsx,js,mjs}"
-      ]
-    },
-    {
-      "id": "eslint-disable",
-      "pattern": "eslint-disable",
-      "match": [
-        "**/*.{ts,tsx,js,mjs}"
-      ]
-    },
-    {
-      "id": "ts-ignore",
-      "pattern": "@ts-ignore",
-      "match": [
-        "**/*.{ts,tsx,js,mjs}"
-      ]
-    },
-    {
-      "id": "ts-expect-error",
-      "pattern": "@ts-expect-error",
-      "match": [
-        "**/*.{ts,tsx,js,mjs}"
-      ]
-    },
-    {
-      "id": "ts-nocheck",
-      "pattern": "@ts-nocheck",
-      "match": [
-        "**/*.{ts,tsx,js,mjs}"
+        "**/*.rs"
       ]
     }
   ],
   "profiles": {
     "default": {
       "mcp": [
-        "playwright",
-        "sentry"
+        "playwright"
       ],
       "connectors": false,
       "model": "opus",

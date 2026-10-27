@@ -1,9 +1,9 @@
 //! `C:\Windows\Minidump`: the crash dumps a normal user can list, matched to the BSOD codes of the event log.
 
 use std::path::{Path, PathBuf};
+pub use vitals_ipc::Dump;
 
 use chrono::{DateTime, Utc};
-use serde::Serialize;
 
 /// A dump and its BSOD event are written minutes apart: the event comes after the reboot.
 const MATCH_WINDOW_SECONDS: i64 = 30 * 60;
@@ -13,16 +13,6 @@ pub struct DumpFile {
     pub name: String,
     pub size: u64,
     pub written: DateTime<Utc>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Dump {
-    pub name: String,
-    pub size: u64,
-    pub time: i64,
-    /// The bugcheck code of the matching BSOD event, absent when the log no longer holds it
-    pub code: Option<String>,
 }
 
 pub fn minidump_dir() -> PathBuf {

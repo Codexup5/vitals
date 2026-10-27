@@ -13,13 +13,14 @@ use chrono::{Days, Local, NaiveDate};
 use serde::Serialize;
 use tauri::State;
 
-use crate::collector::{self, HealthSummary};
-use crate::dumps::{self, Dump};
-use crate::storage::queries::{DayRow, EventFilter, EventPage};
-use crate::storage::{Storage, StorageError};
+use vitals_ipc::{
+    CommandErrorBody, CommandErrorKind, EVENT_PAGE_SIZE, EventPage, HealthOverview, MAX_RANGE_DAYS,
+};
 
-const PAGE_SIZE: u32 = 50;
-const MAX_RANGE_DAYS: u32 = 366;
+use crate::collector;
+use crate::dumps::{self, Dump};
+use crate::storage::queries::EventFilter;
+use crate::storage::{Storage, StorageError};
 
 /// Where the database lives; every command opens its own connection, the collector keeps its own.
 #[derive(Debug)]
@@ -40,16 +41,16 @@ pub enum CommandError {
 
 impl Serialize for CommandError {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        use serde::ser::SerializeStruct;
         let kind = match self {
-            Self::Storage(_) => "storage",
-            Self::Invalid(_) => "invalid",
-            Self::Io(_) => "io",
+            Self::Storage(_) => CommandErrorKind::Storage,
+            Self::Invalid(_) => CommandErrorKind::Invalid,
+            Self::Io(_) => CommandErrorKind::Io,
         };
-        let mut state = serializer.serialize_struct("CommandError", 2)?;
-        state.serialize_field("kind", kind)?;
-        state.serialize_field("message", &self.to_string())?;
-        state.end()
+        CommandErrorBody {
+            kind,
+            message: self.to_string(),
+        }
+        .serialize(serializer)
     }
 }
 
@@ -66,15 +67,6 @@ fn parse_day(text: &str) -> Result<NaiveDate, CommandError> {
 #[tauri::command]
 pub fn log_ui_error(message: &str, context: &str) {
     tracing::error!(target: "ui", "{message} {context}");
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct HealthOverview {
-    pub summary: HealthSummary,
-    pub first_day: Option<String>,
-    pub days: Vec<DayRow>,
-    pub months: Vec<DayRow>,
 }
 
 /// The last `days` days (today included) and every month of the history.
@@ -115,9 +107,9 @@ pub fn health_events(
         to: to.as_deref().map(parse_day).transpose()?,
     };
     let offset = page
-        .checked_mul(PAGE_SIZE)
+        .checked_mul(EVENT_PAGE_SIZE)
         .ok_or_else(|| CommandError::Invalid(format!("page {page}")))?;
-    Ok(open(&state)?.events_page(&filter, offset, PAGE_SIZE)?)
+    Ok(open(&state)?.events_page(&filter, offset, EVENT_PAGE_SIZE)?)
 }
 
 #[tauri::command]

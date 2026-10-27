@@ -12,44 +12,45 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # the PC runner keeps the Rust build between jobs: checkout cleans ignored files, target/ included
+  CARGO_TARGET_DIR: ${{ runner.tool_cache }}/vitals-target
+
 jobs:
   verify:
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
-    timeout-minutes: 15
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v6
-        with:
-          # a self-hosted runner gets its own pnpm and store: the default ~/setup-pnpm is shared and parallel jobs break it
-          dest: ${{ runner.tool_cache }}/setup-pnpm
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: ${{ !vars.CI_RUNNER && 'pnpm' || '' }}
-          package-manager-cache: ${{ !vars.CI_RUNNER }}
-      - run: pnpm install --frozen-lockfile
-      # verify ends with conventions: cargo fmt, clippy and test of src-tauri
-      - run: pnpm verify
-        env:
-          # the PC runner keeps the Rust build between jobs: checkout cleans ignored files, target/ included
-          CARGO_TARGET_DIR: ${{ runner.tool_cache }}/vitals-target
+      - name: WebAssembly target and Trunk
+        run: |
+          rustup target add wasm32-unknown-unknown
+          trunk --version || cargo install trunk --version 0.21.14 --locked
+      - run: cargo fmt --all -- --check
+      - run: cargo xtask check
+      # the core embeds the built window: tauri-build needs crates/vitals-ui/dist before clippy and tests
+      - name: Build the window
+        working-directory: crates/vitals-ui
+        run: trunk build
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo clippy -p vitals-ui --target wasm32-unknown-unknown --locked -- -D warnings
+      - run: cargo test --workspace --locked
 
-  commitlint:
+  commits:
     if: ${{ github.event_name == 'pull_request' }}
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
-    timeout-minutes: 5
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v6
         with:
-          dest: ${{ runner.tool_cache }}/setup-pnpm
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: ${{ !vars.CI_RUNNER && 'pnpm' || '' }}
-          package-manager-cache: ${{ !vars.CI_RUNNER }}
-      - run: pnpm install --frozen-lockfile
-      # node prints the title the same way in bash on Linux and in PowerShell on a self-hosted Windows runner
-      - run: node -e "process.stdout.write(process.env.PR_TITLE)" | pnpm exec commitlint
+          fetch-depth: 0
+      - run: cargo xtask header "$PR_TITLE"
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
+      - run: cargo xtask commits "origin/${{ github.base_ref }}..HEAD"

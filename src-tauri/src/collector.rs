@@ -1,6 +1,7 @@
 //! The collector: counts the days from the event log, keeps the machine snapshot, and says what the tray shows.
 
 use std::time::{Duration, Instant};
+pub use vitals_ipc::HealthSummary;
 
 use chrono::{DateTime, Days, Local, NaiveDate, TimeZone, Utc};
 
@@ -38,14 +39,6 @@ pub fn first_day_to_count(
         .and_then(|oldest| oldest.succ_opt())
         .unwrap_or(wanted);
     wanted.max(first_full).min(today)
-}
-
-#[derive(Debug, Clone, PartialEq, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct HealthSummary {
-    /// Whole days since the last day with a crash or a BSOD; since the first recorded day when there was none
-    pub days_without_crash: Option<i64>,
-    pub system_drive_free_gb: Option<f64>,
 }
 
 pub fn summarize(

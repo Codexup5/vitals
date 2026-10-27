@@ -1,12 +1,12 @@
 [package]
 name = "vitals"
-version = "0.0.0"
 description = "Local Windows PC health panel"
-authors = ["Codexup5"]
-license = "MIT"
-repository = "https://github.com/Codexup5/vitals"
-edition = "2024"
-rust-version = "1.85"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+edition.workspace = true
+rust-version.workspace = true
 
 [lib]
 name = "vitals_lib"
@@ -19,37 +19,19 @@ tauri-build = { version = "2", features = [] }
 chrono = "0.4"
 quick-xml = { version = "0.42", features = ["serialize"] }
 rusqlite = { version = "0.41", features = ["bundled"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde.workspace = true
+serde_json.workspace = true
 tauri = { version = "2", features = ["tray-icon"] }
-thiserror = "2"
+thiserror.workspace = true
 tracing = "0.1"
 tracing-appender = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+vitals-ipc.workspace = true
 windows = { version = "0.62", features = ["Win32_System_EventLog", "Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_SystemInformation", "Win32_Globalization"] }
 wmi = "=0.17.3"
 
-[lints.rust]
-unsafe_code = "deny"
-missing_debug_implementations = "warn"
-
-[lints.clippy]
-pedantic = { level = "warn", priority = -1 }
-unwrap_used = "deny"
-expect_used = "deny"
-panic = "deny"
-todo = "deny"
-dbg_macro = "deny"
-print_stdout = "deny"
-undocumented_unsafe_blocks = "deny"
-module_name_repetitions = "allow"
-
-[profile.release]
-codegen-units = 1
-lto = true
-opt-level = "s"
-panic = "abort"
-strip = true
+[lints]
+workspace = true
 
 [dev-dependencies]
 tempfile = "3"

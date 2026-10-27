@@ -4,6 +4,7 @@ pub mod queries;
 mod schema;
 
 use std::path::Path;
+pub use vitals_ipc::DayCounts;
 
 use chrono::{DateTime, Days, NaiveDate, Utc};
 use rusqlite::{Connection, OptionalExtension, params};
@@ -37,21 +38,6 @@ impl DaySource {
             Self::Import => "import",
         }
     }
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DayCounts {
-    pub crashes: u32,
-    pub bsod: u32,
-    pub gpu_reset: u32,
-    pub nv_container: u32,
-    pub whea: u32,
-    pub iommu: u32,
-    pub app_crashes: u32,
-    pub errors: u32,
-    /// "Steam.exe ×2", most frequent first, at most three
-    pub top_apps: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

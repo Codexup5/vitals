@@ -1,21 +1,7 @@
 //! Which category a folder of the home belongs to, for the treemap legend of the brief, §4.
 
 use std::path::Path;
-
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum Category {
-    DocumentsMedia,
-    DevTools,
-    CodeProjects,
-    Sdks,
-    AiModels,
-    PackageCaches,
-    System,
-    Other,
-}
+pub use vitals_ipc::Category;
 
 /// Relative to the home, lower case, `/`-separated prefixes; the first match wins, so the specific go first.
 const RULES: &[(&str, Category)] = &[

@@ -1,0 +1,98 @@
+// The crash chart: stacked bars, a colour and a texture per kind, the table of values under it
+
+.chart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.chart-caption {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  align-items: baseline;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  padding: 0;
+  font-size: var(--font-size-caption);
+  list-style: none;
+
+  li {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+  }
+}
+
+.swatch {
+  width: 12px;
+  height: 12px;
+}
+
+.plot {
+  width: 100%;
+  height: auto;
+}
+
+.chart .plot {
+  max-height: var(--chart-height);
+}
+
+.chart-grid {
+  stroke: var(--color-border);
+  stroke-width: 1;
+}
+
+.chart-axis {
+  stroke: var(--color-border-control);
+  stroke-width: 1;
+}
+
+.chart-tick {
+  fill: var(--color-text-muted);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-hit {
+  fill: transparent;
+
+  &:hover {
+    fill: var(--color-bg);
+  }
+}
+
+@each $kind in crash, bsod, whea, gpu-reset, app-crash {
+  .fill-#{$kind} {
+    fill: var(--color-chart-#{$kind});
+  }
+}
+
+.fill-stripe {
+  fill: var(--color-surface);
+  opacity: 0.55;
+}
+
+.chart-table {
+  font-size: var(--font-size-caption);
+
+  summary {
+    min-height: var(--touch-target);
+    cursor: pointer;
+  }
+
+  table {
+    font-variant-numeric: tabular-nums;
+  }
+
+  td {
+    text-align: right;
+  }
+}
