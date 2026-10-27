@@ -196,6 +196,27 @@ pub struct DisksPage {
     pub reveal_failed: &'static str,
     pub nothing: &'static str,
     pub total: fn(&str) -> String,
+    pub select_safe: &'static str,
+    pub clear_selection: &'static str,
+    pub selected: fn(usize, &str) -> String,
+    pub clean: &'static str,
+    pub choose: fn(&str) -> String,
+    pub manual: &'static str,
+    pub preview_title: &'static str,
+    pub preview_files: fn(&str, &str) -> String,
+    pub preview_commands: fn(usize, &str) -> String,
+    pub preview_admin: &'static str,
+    pub preview_manual: &'static str,
+    pub preview_refused: fn(usize) -> String,
+    pub confirm: &'static str,
+    pub cancel: &'static str,
+    pub cleaning: &'static str,
+    pub report: fn(&str, &str, &str) -> String,
+    pub report_skipped: fn(&str, &str, &str) -> String,
+    pub declined: &'static str,
+    pub failed: fn(&str) -> String,
+    pub preview_failed: &'static str,
+    pub run_failed: &'static str,
 }
 
 #[derive(Debug)]
@@ -355,7 +376,7 @@ pub static RU: Texts = Texts {
         tile_review: "Есть что проверить",
         tile_none: "Нечего чистить",
         recommendations_title: "Рекомендации",
-        safe_hint: "Белый список: удалится навсегда после предпросмотра. Кнопка «Очистить» появится на следующем этапе вместе с тестами безопасности.",
+        safe_hint: "Белый список: удаляется навсегда после предпросмотра, без Корзины.",
         review_hint: "Решаете поштучно. Ничего не отмечено заранее.",
         up_to: |size| format!("до {size}"),
         changed: |date| format!("изменено {date}"),
@@ -363,6 +384,41 @@ pub static RU: Texts = Texts {
         reveal_failed: "Не удалось открыть Проводник: путь удалён или недоступен.",
         nothing: "Ничего не найдено.",
         total: |size| format!("Всего: {size}"),
+        select_safe: "Выбрать безопасное",
+        clear_selection: "Снять выбор",
+        selected: |count, size| format!("Выбрано: {count} · {size}"),
+        clean: "Очистить…",
+        choose: |title| format!("Выбрать: {title}"),
+        manual: "Вручную",
+        preview_title: "Удалить навсегда?",
+        preview_files: |files, size| {
+            format!("{files} файлов, {size}. Корзина не используется: вернуть их нельзя.")
+        },
+        preview_commands: |count, size| {
+            format!(
+                "Ещё {count} — до {size} — очистят их собственные программы: pnpm, npm, Docker."
+            )
+        },
+        preview_admin: r"Для C:\Windows\Temp Windows спросит права администратора.",
+        preview_manual: "Сжатие диска WSL или Docker панель не делает: остановите Docker и WSL и сожмите образ вручную.",
+        preview_refused: |count| {
+            format!("Пропущено пунктов, которые лежат не там, где положено: {count}.")
+        },
+        confirm: "Удалить",
+        cancel: "Отмена",
+        cleaning: "Очистка…",
+        report: |deleted, skipped, freed| {
+            format!("Удалено файлов: {deleted} · пропущено: {skipped} · освобождено: {freed}")
+        },
+        report_skipped: |busy, changed, refused| {
+            format!(
+                "Пропущены: заняты программами — {busy}, изменились после предпросмотра — {changed}, вне разрешённых папок — {refused}"
+            )
+        },
+        declined: r"Права администратора не даны: C:\Windows\Temp не очищена.",
+        failed: |title| format!("Не удалось: {title}"),
+        preview_failed: "Не удалось подготовить очистку. Пересканируйте и повторите.",
+        run_failed: "Очистка не завершилась. Пересканируйте: панель покажет, что осталось.",
     },
     disk: Disk {
         categories: [
@@ -569,7 +625,7 @@ pub static EN: Texts = Texts {
         tile_review: "Has something to review",
         tile_none: "Nothing to clean",
         recommendations_title: "Recommendations",
-        safe_hint: "The whitelist: removed for good after a preview. The Clean button comes with the next stage, together with the safety tests.",
+        safe_hint: "The whitelist: removed for good after a preview, not to the Recycle Bin.",
         review_hint: "You decide one by one. Nothing is checked in advance.",
         up_to: |size| format!("up to {size}"),
         changed: |date| format!("changed {date}"),
@@ -577,6 +633,41 @@ pub static EN: Texts = Texts {
         reveal_failed: "Could not open Explorer: the path is gone or not accessible.",
         nothing: "Nothing found.",
         total: |size| format!("Total: {size}"),
+        select_safe: "Select the safe ones",
+        clear_selection: "Clear the selection",
+        selected: |count, size| format!("Selected: {count} · {size}"),
+        clean: "Clean…",
+        choose: |title| format!("Choose: {title}"),
+        manual: "By hand",
+        preview_title: "Delete for good?",
+        preview_files: |files, size| {
+            format!(
+                "{files} files, {size}. The Recycle Bin is not used: they cannot be brought back."
+            )
+        },
+        preview_commands: |count, size| {
+            format!("{count} more, up to {size}, cleaned by their own programs: pnpm, npm, Docker.")
+        },
+        preview_admin: r"Windows asks for admin rights for C:\Windows\Temp.",
+        preview_manual: "The panel does not compact a WSL or Docker disk: stop Docker and WSL and compact the image by hand.",
+        preview_refused: |count| {
+            format!("Items skipped because they are not where they belong: {count}.")
+        },
+        confirm: "Delete",
+        cancel: "Cancel",
+        cleaning: "Cleaning…",
+        report: |deleted, skipped, freed| {
+            format!("Files deleted: {deleted} · skipped: {skipped} · freed: {freed}")
+        },
+        report_skipped: |busy, changed, refused| {
+            format!(
+                "Skipped: open in programs — {busy}, changed since the preview — {changed}, outside the allowed folders — {refused}"
+            )
+        },
+        declined: r"Admin rights were not given: C:\Windows\Temp was not cleaned.",
+        failed: |title| format!("Failed: {title}"),
+        preview_failed: "Could not prepare the cleanup. Scan again and retry.",
+        run_failed: "The cleanup did not finish. Scan again: the panel shows what is left.",
     },
     disk: Disk {
         categories: [

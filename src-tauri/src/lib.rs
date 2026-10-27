@@ -26,6 +26,11 @@ pub const MAIN_WINDOW: &str = "main";
 /// Starts the panel: the log, the tray icon, the collector thread, the main window hidden to the tray on close.
 #[must_use]
 pub fn run() -> ExitCode {
+    // The same exe under UAC for one admin action: it runs the action and exits, no window, no tray
+    let args: Vec<String> = std::env::args().collect();
+    if let Some(code) = cleanup::elevated::handle(&args) {
+        return code;
+    }
     let result = tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             commands::log_ui_error,
@@ -36,14 +41,18 @@ pub fn run() -> ExitCode {
             commands::disks::disks_overview,
             commands::disks::scan_start,
             commands::disks::scan_status,
-            commands::disks::reveal_path
+            commands::disks::reveal_path,
+            commands::disks::cleanup_preview,
+            commands::disks::cleanup_run
         ])
         .setup(|app| {
             let data_dir = app_paths::ensure_data_dir()?;
             logging::init(&data_dir);
             app.manage(commands::AppState {
                 db_path: data_dir.join(storage::DB_FILE),
+                data_dir: data_dir.clone(),
                 scan: std::sync::Arc::default(),
+                plan: std::sync::Mutex::default(),
             });
             let is_russian = system::windows::ui_language_is_russian();
             tray::create(app.handle(), is_russian)?;
@@ -74,6 +83,9 @@ pub fn run() -> ExitCode {
 
 /// The old PowerShell collector's history, imported once per day it lacks (stage 8 retires that collector).
 fn legacy_health_json() -> Option<PathBuf> {
+    if app_paths::e2e_root().is_some() {
+        return None;
+    }
     let profile = std::env::var_os("USERPROFILE")?;
     let path = Path::new(&profile)
         .join(".olegpc")

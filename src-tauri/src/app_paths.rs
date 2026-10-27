@@ -22,8 +22,26 @@ pub fn data_dir_from(app_data: Option<OsString>) -> Result<PathBuf, AppPathsErro
     Ok(PathBuf::from(app_data).join(DATA_FOLDER))
 }
 
+/// `VITALS_E2E_ROOT` in a debug build: every folder the panel reads or writes lives under it, so the e2e scenario
+/// scans and cleans a fixture, never the PC. A release build has no such switch.
+#[cfg(debug_assertions)]
+pub fn e2e_root() -> Option<PathBuf> {
+    std::env::var_os("VITALS_E2E_ROOT")
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+}
+
+#[cfg(not(debug_assertions))]
+pub const fn e2e_root() -> Option<PathBuf> {
+    None
+}
+
 pub fn ensure_data_dir() -> Result<PathBuf, AppPathsError> {
-    let path = data_dir_from(std::env::var_os("APPDATA"))?;
+    let app_data = e2e_root().map_or_else(
+        || std::env::var_os("APPDATA"),
+        |root| Some(root.join("appdata").into_os_string()),
+    );
+    let path = data_dir_from(app_data)?;
     std::fs::create_dir_all(&path).map_err(|source| AppPathsError::CreateDir {
         path: path.clone(),
         source,

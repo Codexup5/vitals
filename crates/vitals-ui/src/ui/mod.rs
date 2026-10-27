@@ -1,5 +1,6 @@
 //! The markup of the window: Leptos components that draw what `views` computed.
 
+mod cleanup;
 mod disks;
 mod errors;
 mod layout;

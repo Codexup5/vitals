@@ -297,6 +297,8 @@ pub struct RecommendationRow {
     pub path: Option<String>,
     pub size: String,
     pub notes: Vec<String>,
+    /// A disk image is compacted by hand: it gets no checkbox
+    pub is_selectable: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -319,6 +321,7 @@ fn recommendation_row(candidate: &Candidate, locale: Locale) -> RecommendationRo
         .into_iter()
         .collect();
     RecommendationRow {
+        is_selectable: candidate.kind != vitals_ipc::CandidateKind::Vhdx,
         id: candidate.id.clone(),
         title,
         hint,

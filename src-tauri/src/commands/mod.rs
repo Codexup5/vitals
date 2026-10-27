@@ -26,7 +26,11 @@ use crate::storage::{Storage, StorageError};
 #[derive(Debug)]
 pub struct AppState {
     pub db_path: PathBuf,
+    /// `%APPDATA%\Vitals`: the cleanup log and the files of an elevated action
+    pub data_dir: PathBuf,
     pub scan: Arc<crate::scan::job::ScanJob>,
+    /// The last cleanup preview: a run executes this one, by its id, or nothing
+    pub plan: std::sync::Mutex<Option<crate::cleanup::plan::Plan>>,
 }
 
 #[derive(Debug, thiserror::Error)]

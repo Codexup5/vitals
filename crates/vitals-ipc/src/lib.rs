@@ -17,6 +17,8 @@ pub mod command {
     pub const SCAN_START: &str = "scan_start";
     pub const SCAN_STATUS: &str = "scan_status";
     pub const REVEAL_PATH: &str = "reveal_path";
+    pub const CLEANUP_PREVIEW: &str = "cleanup_preview";
+    pub const CLEANUP_RUN: &str = "cleanup_run";
     pub const LOG_UI_ERROR: &str = "log_ui_error";
 }
 
@@ -353,6 +355,107 @@ pub struct ScanStatus {
     pub is_running: bool,
     pub files: u64,
     pub bytes: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CleanupPreviewArgs {
+    /// The candidate ids of the latest scan the user checked
+    pub ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CleanupRunArgs {
+    pub plan_id: u64,
+}
+
+/// How a candidate gets cleaned.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CleanupHow {
+    /// The files listed by the preview are deleted
+    Files,
+    /// The tool that owns the cache cleans it (`pnpm store prune`, `docker image prune`)
+    Command,
+    /// The panel does not do it: compacting a disk image needs Docker and WSL stopped
+    Manual,
+    /// The candidate is not where its kind may be cleaned, or in a place the panel never touches
+    Refused,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PreviewItem {
+    pub candidate_id: String,
+    pub kind: CandidateKind,
+    pub how: CleanupHow,
+    /// The files the run will delete; 0 for a command
+    pub files: u64,
+    /// What the files hold, or the size the scan saw for a command
+    pub bytes: u64,
+    pub needs_admin: bool,
+}
+
+/// The snapshot a run executes: the same list, whatever appears or changes after it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CleanupPreview {
+    pub plan_id: u64,
+    pub items: Vec<PreviewItem>,
+}
+
+/// What became of the files of a cleanup.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CleanupTally {
+    pub deleted: u64,
+    /// Open in a program, or locked by Windows
+    pub busy: u64,
+    /// Written, replaced or gone since the preview
+    pub changed: u64,
+    /// Outside the root, or in a place the panel never touches
+    pub refused: u64,
+    pub freed: u64,
+}
+
+impl CleanupTally {
+    pub fn add(&mut self, other: Self) {
+        self.deleted += other.deleted;
+        self.busy += other.busy;
+        self.changed += other.changed;
+        self.refused += other.refused;
+        self.freed += other.freed;
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CleanupOutcome {
+    Done,
+    /// Windows asked for admin rights and the user said no: nothing ran
+    Declined,
+    /// The tool failed or is not installed
+    Failed,
+    /// Manual or refused: nothing to run
+    Skipped,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CleanupItemReport {
+    pub candidate_id: String,
+    pub kind: CandidateKind,
+    pub outcome: CleanupOutcome,
+    pub tally: CleanupTally,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CleanupReport {
+    /// Unix seconds
+    pub finished_at: i64,
+    pub items: Vec<CleanupItemReport>,
+    pub total: CleanupTally,
 }
 
 #[cfg(test)]

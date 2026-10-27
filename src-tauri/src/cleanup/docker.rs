@@ -1,7 +1,6 @@
 //! Docker's own account of what it could free, read from `docker system df` and `docker images`.
 
-use std::process::{Command, Stdio};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 const DOCKER_TIMEOUT: Duration = Duration::from_secs(15);
 
@@ -41,28 +40,7 @@ pub fn reclaimable(lines: &str, kind: &str) -> Option<u64> {
 
 /// Runs docker with a deadline: a stopped Docker Desktop must not hang the scan.
 pub fn run(args: &[&str]) -> Option<String> {
-    let mut child = Command::new("docker")
-        .args(args)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .ok()?;
-    let started = Instant::now();
-    loop {
-        match child.try_wait() {
-            Ok(Some(status)) if status.success() => break,
-            Ok(Some(_)) | Err(_) => return None,
-            Ok(None) if started.elapsed() > DOCKER_TIMEOUT => {
-                if let Err(error) = child.kill() {
-                    tracing::warn!("could not stop a hanging docker call: {error}");
-                }
-                return None;
-            }
-            Ok(None) => std::thread::sleep(Duration::from_millis(100)),
-        }
-    }
-    let output = child.wait_with_output().ok()?;
-    String::from_utf8(output.stdout).ok()
+    super::process::run("docker", args, DOCKER_TIMEOUT)
 }
 
 #[cfg(test)]

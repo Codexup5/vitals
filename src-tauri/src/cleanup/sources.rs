@@ -6,10 +6,10 @@ use std::time::{Duration, SystemTime};
 use super::{Candidate, CandidateKind, Group, docker};
 use crate::scan::{Progress, WalkOptions, older_than, walk};
 
-const TEMP_AGE: Duration = Duration::from_secs(7 * 24 * 60 * 60);
+pub(super) const TEMP_AGE: Duration = Duration::from_secs(7 * 24 * 60 * 60);
 const STALE_PROJECT_AGE: Duration = Duration::from_secs(30 * 24 * 60 * 60);
 /// `%TEMP%\claude` holds the Claude Code sessions: never a candidate
-const TEMP_KEEP: &[&str] = &["claude"];
+pub(super) const TEMP_KEEP: &[&str] = &["claude"];
 /// Folders a project search never enters: they are not projects and are huge
 const NOT_PROJECTS: &[&str] = &[
     "node_modules",
@@ -35,22 +35,40 @@ const PROJECT_SEARCH_DEPTH: usize = 5;
 /// The folders the preview reads; tests point them into a temporary folder.
 #[derive(Debug, Clone)]
 pub struct Places {
+    pub home: PathBuf,
     pub temp: PathBuf,
     pub windows_temp: PathBuf,
     pub local_app_data: PathBuf,
+    pub roaming_app_data: PathBuf,
     pub code_roots: Vec<PathBuf>,
     pub query_docker: bool,
 }
 
 impl Places {
-    pub fn from_env(code_roots: Vec<PathBuf>) -> Option<Self> {
+    /// Every folder under one root, Docker not asked: the tests and the e2e fixture.
+    pub fn under(root: &Path) -> Self {
+        Self {
+            home: root.join("home"),
+            temp: root.join("temp"),
+            windows_temp: root.join("windows-temp"),
+            local_app_data: root.join("local"),
+            roaming_app_data: root.join("roaming"),
+            code_roots: vec![root.join("home").join("Desktop").join("Code")],
+            query_docker: false,
+        }
+    }
+
+    pub fn from_env(home: PathBuf, code_roots: Vec<PathBuf>) -> Option<Self> {
         let local_app_data = PathBuf::from(std::env::var_os("LOCALAPPDATA")?);
+        let roaming_app_data = PathBuf::from(std::env::var_os("APPDATA")?);
         let windows = std::env::var_os("SystemRoot")
             .map_or_else(|| PathBuf::from(r"C:\Windows"), PathBuf::from);
         Some(Self {
+            home,
             temp: std::env::temp_dir(),
             windows_temp: windows.join("Temp"),
             local_app_data,
+            roaming_app_data,
             code_roots,
             query_docker: true,
         })
@@ -294,13 +312,7 @@ mod tests {
     }
 
     fn places(root: &Path) -> Places {
-        Places {
-            temp: root.join("temp"),
-            windows_temp: root.join("windows-temp"),
-            local_app_data: root.join("local"),
-            code_roots: vec![root.join("code")],
-            query_docker: false,
-        }
+        Places::under(root)
     }
 
     #[test]
@@ -311,8 +323,13 @@ mod tests {
         write(&places.temp.join("claude/session.json"), 1000);
         write(&places.local_app_data.join("pnpm/store/v10/file"), 500);
         write(&places.local_app_data.join("NVIDIA/DXCache/shader.bin"), 30);
-        write(&root.path().join("code/app/package.json"), 2);
-        write(&root.path().join("code/app/.next/cache/page.bin"), 70);
+        write(&root.path().join("home/Desktop/Code/app/package.json"), 2);
+        write(
+            &root
+                .path()
+                .join("home/Desktop/Code/app/.next/cache/page.bin"),
+            70,
+        );
         // Everything counts as old when "now" is far in the future
         let now = SystemTime::now() + Duration::from_secs(400 * 24 * 60 * 60);
         let candidates = find_candidates(&places, now, &Progress::default());
@@ -338,8 +355,13 @@ mod tests {
     fn node_modules_is_offered_only_in_a_project_untouched_for_a_month() {
         let root = tempfile::tempdir().unwrap();
         let places = places(root.path());
-        write(&root.path().join("code/old/package.json"), 2);
-        write(&root.path().join("code/old/node_modules/lib/index.js"), 900);
+        write(&root.path().join("home/Desktop/Code/old/package.json"), 2);
+        write(
+            &root
+                .path()
+                .join("home/Desktop/Code/old/node_modules/lib/index.js"),
+            900,
+        );
         let in_two_months = SystemTime::now() + Duration::from_secs(60 * 24 * 60 * 60);
         let found = find_candidates(&places, in_two_months, &Progress::default());
         let stale: Vec<_> = found
