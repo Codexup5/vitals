@@ -4,6 +4,7 @@ mod cleanup;
 mod disks;
 mod errors;
 mod layout;
+mod network;
 mod runners;
 mod updates;
 mod widgets;
@@ -29,6 +30,7 @@ pub fn App() -> impl IntoView {
                     <Route path=path!("disks") view=disks::DisksPage />
                     <Route path=path!("updates") view=updates::UpdatesPage />
                     <Route path=path!("runners") view=runners::RunnersPage />
+                    <Route path=path!("network") view=network::NetworkPage />
                     <Route path=path!(":module") view=ModuleRoute />
                 </ParentRoute>
             </Routes>

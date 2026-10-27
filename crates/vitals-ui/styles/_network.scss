@@ -1,0 +1,61 @@
+// The network screen: the two latency lines, their legend swatches, the tone of a counter
+
+// The router line is solid and the internet line dashed: told apart without colour too
+.line-gateway,
+.line-internet {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.line-gateway {
+  stroke: var(--color-chart-gateway);
+}
+
+.line-internet {
+  stroke: var(--color-chart-internet);
+  stroke-dasharray: 6 4;
+}
+
+// A measurement alone: filled, so it shows without a line through it
+.dot {
+  stroke-dasharray: none;
+}
+
+.line-gateway.dot {
+  fill: var(--color-chart-gateway);
+}
+
+.line-internet.dot {
+  fill: var(--color-chart-internet);
+}
+
+.swatch-line {
+  width: 24px;
+  height: 12px;
+}
+
+// The counter's word says the trouble; the line on its side only repeats it
+.stat[data-tone] {
+  border-left: 2px solid var(--color-border);
+}
+
+.stat[data-tone='ok'] {
+  border-left-color: var(--color-ok);
+}
+
+.stat[data-tone='warn'] {
+  border-left-color: var(--color-warn);
+}
+
+.stat[data-tone='danger'] {
+  border-left-color: var(--color-danger);
+}
+
+.speed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: flex-start;
+}

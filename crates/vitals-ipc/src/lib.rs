@@ -28,6 +28,10 @@ pub mod command {
     pub const RUNNERS_OVERVIEW: &str = "runners_overview";
     pub const MODE_START: &str = "mode_start";
     pub const MODE_STATUS: &str = "mode_status";
+    pub const NETWORK_OVERVIEW: &str = "network_overview";
+    pub const NETWORK_PROBE: &str = "network_probe";
+    pub const SPEED_TEST_START: &str = "speed_test_start";
+    pub const SPEED_TEST_STATUS: &str = "speed_test_status";
     pub const LOG_UI_ERROR: &str = "log_ui_error";
 }
 
@@ -673,6 +677,74 @@ pub struct ModeStatus {
     /// The mode being switched to now
     pub switching: Option<Mode>,
     pub last: Option<ModeResult>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum AdapterKind {
+    Ethernet,
+    Wifi,
+    Other,
+}
+
+/// A network adapter that is up and has a gateway: the way out of this PC.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Adapter {
+    pub name: String,
+    pub description: String,
+    pub kind: AdapterKind,
+    /// The link speed the adapter negotiated, bits per second
+    pub link_bps: Option<u64>,
+    pub address: Option<String>,
+    pub gateway: Option<String>,
+}
+
+/// A burst of pings to one host: the mean round trip, the share lost, the jitter between consecutive replies.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Probe {
+    pub avg_ms: Option<f64>,
+    /// 0 to 100
+    pub loss_pct: f64,
+    pub jitter_ms: Option<f64>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NetSample {
+    /// Unix seconds
+    pub time: i64,
+    /// None when the PC had no gateway
+    pub gateway: Option<Probe>,
+    pub internet: Probe,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NetworkOverview {
+    pub adapters: Vec<Adapter>,
+    /// The samples of the last day, oldest first
+    pub samples: Vec<NetSample>,
+    /// The host pinged for the internet
+    pub internet_host: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SpeedResult {
+    /// Bytes per second; none when the transfer failed
+    pub down: Option<u64>,
+    pub up: Option<u64>,
+    /// Unix seconds
+    pub finished_at: i64,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SpeedStatus {
+    pub is_running: bool,
+    pub last: Option<SpeedResult>,
 }
 
 #[cfg(test)]
