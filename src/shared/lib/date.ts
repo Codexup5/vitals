@@ -1,7 +1,10 @@
-import { APP_LOCALE } from '../config/locale';
 import { COMMON_TEXTS } from '../config/texts';
+import { INTL_LOCALES, type Locale } from './i18n';
 
-const dateFormat = new Intl.DateTimeFormat(APP_LOCALE, { day: 'numeric', month: 'long', year: 'numeric' });
+const DATE_FORMATS: Readonly<Record<Locale, Intl.DateTimeFormat>> = {
+  ru: new Intl.DateTimeFormat(INTL_LOCALES.ru, { dateStyle: 'long' }),
+  en: new Intl.DateTimeFormat(INTL_LOCALES.en, { dateStyle: 'long' }),
+};
 
 export const parseIsoDateTime = (iso: string) => {
   const date = new Date(iso);
@@ -9,4 +12,5 @@ export const parseIsoDateTime = (iso: string) => {
   return date;
 };
 
-export const formatDate = (date: Date | null) => (date === null ? COMMON_TEXTS.missingValue : dateFormat.format(date));
+export const formatDate = (date: Date | null, locale: Locale) =>
+  date === null ? COMMON_TEXTS[locale].missingValue : DATE_FORMATS[locale].format(date);

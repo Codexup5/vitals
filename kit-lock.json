@@ -7,6 +7,7 @@
       "adapter": "openapi-rest"
     }
   },
+  "reference": false,
   "files": {
     ".claude/.claude-plugin/plugin.json": "4fce52ade4a599fef64ed38812388f9c8c8cad92fc8c1ff991c4aa6382610253",
     ".claude/evals/accessibility-trigger/graders/skill.md": "fe6e8c61e938c7fbb077582829885fef18273075cd5dfa7446c8a80f3f0e5bf1",

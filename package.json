@@ -1,5 +1,5 @@
 {
-  "name": "vitals-gen",
+  "name": "vitals",
   "private": true,
   "type": "module",
   "sideEffects": [
@@ -46,15 +46,11 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@sentry/react": "^11.4.0",
-    "@tanstack/react-form": "^1.33.5",
     "@tanstack/react-query": "^5.104.1",
     "@tanstack/react-router": "^1.170.41",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "react-error-boundary": "^6.1.6",
-    "web-vitals": "^6.2.3",
-    "zod": "^4.6.5"
+    "react-error-boundary": "^6.1.6"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.3",
@@ -84,7 +80,6 @@
     "jsdom": "^30.1.2",
     "knip": "^6.40.0",
     "lint-staged": "^17.6.0",
-    "msw": "^2.15.0",
     "prettier": "^3.9.9",
     "sass-embedded": "^1.105.1",
     "size-limit": "^14.1.0",
@@ -97,13 +92,9 @@
     "vite": "^8.3.3",
     "vitest": "^5.0.3"
   },
-  "msw": {
-    "workerDirectory": [
-      "public"
-    ]
-  },
   "packageManager": "pnpm@11.22.0",
   "engines": {
     "node": ">=24"
-  }
+  },
+  "version": "0.0.0"
 }

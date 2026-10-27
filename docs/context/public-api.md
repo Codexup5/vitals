@@ -7,27 +7,18 @@ Before creating a component, hook or helper, look for it here.
 
 Import by the direct file path.
 
-- `@/shared/api/api-error` — `ApiError`, `isApiError`, `toHttpApiError` · types: `ApiErrorKind`, `FieldErrors`
-- `@/shared/api/error-message` — `getErrorMessage`
-- `@/shared/api/http-client` — `configureAuth`, `httpClient` · types: `QueryParams`, `AuthAdapter`
-- `@/shared/api/lenient-array` — `lenientArray`
-- `@/shared/config/env` — `parseEnv`, `ENV`, `ENV_ISSUES`
-- `@/shared/config/locale` — `APP_LOCALE`
-- `@/shared/config/query` — `STALE_POLICY`, `MAX_QUERY_RETRIES`, `REQUEST_TIMEOUT_MS`
+- `@/shared/config/modules-texts` — `MODULE_TEXTS`
+- `@/shared/config/modules` — `MODULE_IDS`, `isModuleId`, `DEFAULT_MODULE` · types: `ModuleId`
+- `@/shared/config/query` — `STALE_POLICY`, `MAX_QUERY_RETRIES`
 - `@/shared/config/texts` — `COMMON_TEXTS`
 - `@/shared/lib/date` — `parseIsoDateTime`, `formatDate`
-- `@/shared/lib/form-errors` — `getFieldErrorText`, `putServerErrors`, `focusFirstInvalidField`, `clearServerError`
-- `@/shared/lib/plural` — `pluralize` · types: `PluralForms`
+- `@/shared/lib/i18n` — `INTL_LOCALES`, `isLocale`, `detectLocale` · types: `Locale`, `Localized`
+- `@/shared/lib/preferences` — `parsePreferences`, `getPreferences`, `subscribePreferences`, `updatePreferences`, `initPreferences` · types: `Preferences`
 - `@/shared/lib/report-error` — `reportError`
+- `@/shared/model/use-preferences` — `usePreferences`, `useTexts`
 - `@/shared/ui/button/Button` — `Button`
-
-## entities
-
-- **`@/entities/user`** — `USER_TEXTS`, `USER_SEARCH_MAX_LENGTH`, `USER_ROLES`, `getUserFullName`, `userDraftSchema`, `USER_LIST_SEARCH_DEFAULTS`, `userListSearchSchema`, `useCreateUser`, `useDeleteUser`, `useUpdateUser`, `userByIdQuery`, `userListQuery` · types: `User`, `UserPage`, `UserRole`, `UserDraft`, `UserDraftInput`
 
 ## pages
 
+- **`@/pages/module`** — `ModulePage`
 - **`@/pages/not-found`** — `NotFoundPage`
-- **`@/pages/user-details`** — `UserDetailsPage`, `UserDetailsSkeleton`
-- **`@/pages/user-form`** — `UserCreatePage`, `UserEditPage`, `UserFormSkeleton`
-- **`@/pages/user-list`** — `UserListPage`

@@ -1,15 +1,14 @@
 import { useQueryErrorResetBoundary } from '@tanstack/react-query';
 import { useRouter, type ErrorComponentProps } from '@tanstack/react-router';
 
-import { NotFoundPage } from '@/pages/not-found';
-import { isApiError } from '@/shared/api/api-error';
-import { getErrorMessage } from '@/shared/api/error-message';
 import { COMMON_TEXTS } from '@/shared/config/texts';
+import { useTexts } from '@/shared/model/use-preferences';
 import { Button } from '@/shared/ui/button/Button';
 
-export const RouteErrorFallback = ({ error, reset }: ErrorComponentProps) => {
+export const RouteErrorFallback = ({ reset }: ErrorComponentProps) => {
   const router = useRouter();
   const queryErrorBoundary = useQueryErrorResetBoundary();
+  const texts = useTexts(COMMON_TEXTS);
 
   const handleRetry = () => {
     queryErrorBoundary.reset();
@@ -17,14 +16,12 @@ export const RouteErrorFallback = ({ error, reset }: ErrorComponentProps) => {
     void router.invalidate();
   };
 
-  if (isApiError(error) && error.isNotFound) return <NotFoundPage />;
-
   return (
     <main role="alert">
-      <h1>{COMMON_TEXTS.errors.screenTitle}</h1>
-      <p>{getErrorMessage(error)}</p>
+      <h1>{texts.errors.screenTitle}</h1>
+      <p>{texts.errors.unexpected}</p>
       <Button type="button" onClick={handleRetry}>
-        {COMMON_TEXTS.actions.retry}
+        {texts.actions.retry}
       </Button>
     </main>
   );

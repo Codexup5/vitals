@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { APP_LOCALE } from '../config/locale';
 import { COMMON_TEXTS } from '../config/texts';
 import { formatDate, parseIsoDateTime } from './date';
+import { INTL_LOCALES } from './i18n';
 
 describe('parseIsoDateTime', () => {
   it('takes a date with an offset', () => {
@@ -19,14 +19,14 @@ describe('parseIsoDateTime', () => {
 });
 
 describe('formatDate', () => {
-  it('gives the missing-value text for null', () => {
-    expect(formatDate(null)).toBe(COMMON_TEXTS.missingValue);
+  it.each(['ru', 'en'] as const)('gives the missing-value text for null in %s', (locale) => {
+    expect(formatDate(null, locale)).toBe(COMMON_TEXTS[locale].missingValue);
   });
 
-  it('gives a long date in the app locale otherwise', () => {
+  it.each(['ru', 'en'] as const)('gives a long date in %s', (locale) => {
     const date = parseIsoDateTime('2024-03-05T12:00:00Z');
-    const expected = new Intl.DateTimeFormat(APP_LOCALE, { dateStyle: 'long' }).format(date);
+    const expected = new Intl.DateTimeFormat(INTL_LOCALES[locale], { dateStyle: 'long' }).format(date);
 
-    expect(formatDate(date)).toBe(expected);
+    expect(formatDate(date, locale)).toBe(expected);
   });
 });

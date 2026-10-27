@@ -1,7 +1,11 @@
 @use '../../shared/styles/tokens';
 
 :root {
-  color-scheme: light dark;
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
 }
 
 *,

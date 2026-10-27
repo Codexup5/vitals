@@ -4,14 +4,13 @@ import {
   createRoute,
   createRouter,
   lazyRouteComponent,
+  notFound,
   redirect,
-  stripSearchParams,
   type RouterHistory,
 } from '@tanstack/react-router';
 
-import { USER_LIST_SEARCH_DEFAULTS, userByIdQuery, userListSearchSchema } from '@/entities/user';
 import { NotFoundPage } from '@/pages/not-found';
-import { isApiError } from '@/shared/api/api-error';
+import { DEFAULT_MODULE, isModuleId, type ModuleId } from '@/shared/config/modules';
 import { reportError } from '@/shared/lib/report-error';
 
 import { RouteErrorFallback } from '../errors/RouteErrorFallback';
@@ -21,6 +20,13 @@ interface RouterContext {
   queryClient: QueryClient;
 }
 
+// notFound({ throw: true }) throws, yet its type returns the error object: the last line is never reached
+const toModuleId = (value: string): ModuleId => {
+  if (isModuleId(value)) return value;
+  notFound({ throw: true });
+  return DEFAULT_MODULE;
+};
+
 const rootRoute = createRootRouteWithContext<RouterContext>()({
   component: AppLayout,
   notFoundComponent: NotFoundPage,
@@ -29,42 +35,17 @@ const rootRoute = createRootRouteWithContext<RouterContext>()({
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  beforeLoad: () => redirect({ to: '/users', search: {}, throw: true }),
+  beforeLoad: () => redirect({ to: '/$moduleId', params: { moduleId: DEFAULT_MODULE }, throw: true }),
 });
 
-const userListRoute = createRoute({
+const moduleRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: 'users',
-  validateSearch: userListSearchSchema,
-  search: { middlewares: [stripSearchParams(USER_LIST_SEARCH_DEFAULTS)] },
-  component: lazyRouteComponent(() => import('@/pages/user-list'), 'UserListPage'),
+  path: '$moduleId',
+  params: { parse: ({ moduleId }) => ({ moduleId: toModuleId(moduleId) }) },
+  component: lazyRouteComponent(() => import('@/pages/module'), 'ModulePage'),
 });
 
-const userCreateRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: 'users/new',
-  component: lazyRouteComponent(() => import('@/pages/user-form'), 'UserCreatePage'),
-});
-
-const userDetailsRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: 'users/$userId',
-  validateSearch: userListSearchSchema,
-  search: { middlewares: [stripSearchParams(USER_LIST_SEARCH_DEFAULTS)] },
-  loader: ({ context, params }) => context.queryClient.query({ ...userByIdQuery(params.userId), staleTime: 'static' }),
-  pendingComponent: lazyRouteComponent(() => import('@/pages/user-details'), 'UserDetailsSkeleton'),
-  component: lazyRouteComponent(() => import('@/pages/user-details'), 'UserDetailsPage'),
-});
-
-const userEditRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: 'users/$userId/edit',
-  loader: ({ context, params }) => context.queryClient.query({ ...userByIdQuery(params.userId), staleTime: 'static' }),
-  pendingComponent: lazyRouteComponent(() => import('@/pages/user-form'), 'UserFormSkeleton'),
-  component: lazyRouteComponent(() => import('@/pages/user-form'), 'UserEditPage'),
-});
-
-const routeTree = rootRoute.addChildren([indexRoute, userListRoute, userCreateRoute, userDetailsRoute, userEditRoute]);
+const routeTree = rootRoute.addChildren([indexRoute, moduleRoute]);
 
 export const createAppRouter = (queryClient: QueryClient, history?: RouterHistory) =>
   createRouter({
@@ -74,7 +55,7 @@ export const createAppRouter = (queryClient: QueryClient, history?: RouterHistor
     defaultPreloadStaleTime: 0,
     defaultErrorComponent: RouteErrorFallback,
     defaultOnCatch: (error) => {
-      if (!isApiError(error)) reportError(error, { boundary: 'route' });
+      reportError(error, { boundary: 'route' });
     },
     scrollRestoration: true,
     ...(history && { history }),

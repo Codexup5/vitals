@@ -1,0 +1,9 @@
+{
+  "touch-target": {
+    "$type": "dimension",
+    "$value": {
+      "value": 44,
+      "unit": "px"
+    }
+  }
+}

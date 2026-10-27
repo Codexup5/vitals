@@ -4,12 +4,17 @@
   "layers": [
     {
       "file": "base.tokens.json",
-      "theme": "light"
+      "theme": "mocha"
     },
     {
-      "file": "dark.tokens.json",
-      "theme": "dark",
-      "selector": ["@media (prefers-color-scheme: dark)", ":root"]
+      "file": "latte.tokens.json",
+      "theme": "latte",
+      "selector": [":root[data-theme='light']"]
+    },
+    {
+      "file": "coarse.tokens.json",
+      "pointer": "coarse",
+      "selector": ["@media (any-pointer: coarse)", ":root"]
     }
   ]
 }

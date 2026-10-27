@@ -1,8 +1,6 @@
-import { captureException } from '@sentry/react';
-
 type ErrorContext = Readonly<Record<string, unknown>>;
 
+// No telemetry: an error stays on the PC, in the WebView console; the log file in %APPDATA%\Vitals comes with stage 1
 export const reportError = (error: unknown, context: ErrorContext = {}) => {
-  if (import.meta.env.DEV) console.error(error, context);
-  captureException(error, { extra: context });
+  console.error(error, context);
 };
