@@ -8,13 +8,13 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use vitals_ipc::{DevicesOverview, NetworkOverview, SpeedStatus, command};
 
-use super::widgets::{Eyebrow, Failure, Tag};
+use super::widgets::{Eyebrow, Failure, Stats, Tag};
 use crate::i18n::Locale;
 use crate::ipc::{self, IpcError};
 use crate::preferences::PreferencesStore;
 use crate::views::disks::Tone;
 use crate::views::network::{
-    AdapterRow, CHART_HEIGHT, CHART_WIDTH, LatencyChart, NetworkView, RecentRow, Stat, Stretch,
+    AdapterRow, CHART_HEIGHT, CHART_WIDTH, LatencyChart, NetworkView, RecentRow, Stretch,
     devices_view, network_view, speed_line,
 };
 
@@ -139,26 +139,6 @@ fn stretch_view(stretch: Stretch, class: &'static str) -> AnyView {
         Stretch::Dot { x, y } => {
             view! { <circle class=format!("{class} dot") cx=x cy=y r="4" /> }.into_any()
         }
-    }
-}
-
-#[component]
-fn Stats(stats: Vec<Stat>) -> impl IntoView {
-    view! {
-        <ul class="stats">
-            {stats
-                .into_iter()
-                .map(|stat| {
-                    view! {
-                        <li class="stat" data-tone=stat.tone.map(Tone::code)>
-                            <span class="stat-value">{stat.value}</span>
-                            <span>{stat.label}</span>
-                            {stat.hint.map(|hint| view! { <span class="muted">{hint}</span> })}
-                        </li>
-                    }
-                })
-                .collect_view()}
-        </ul>
     }
 }
 

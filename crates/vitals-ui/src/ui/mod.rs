@@ -6,6 +6,7 @@ mod errors;
 mod layout;
 mod network;
 mod runners;
+mod startup;
 mod updates;
 mod widgets;
 
@@ -31,6 +32,7 @@ pub fn App() -> impl IntoView {
                     <Route path=path!("updates") view=updates::UpdatesPage />
                     <Route path=path!("runners") view=runners::RunnersPage />
                     <Route path=path!("network") view=network::NetworkPage />
+                    <Route path=path!("startup") view=startup::StartupPage />
                     <Route path=path!(":module") view=ModuleRoute />
                 </ParentRoute>
             </Routes>
