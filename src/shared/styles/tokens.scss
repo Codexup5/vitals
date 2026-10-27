@@ -10,6 +10,11 @@
   --color-on-accent: #11111b;
   --color-danger: #f38ba8;
   --color-focus: #b4befe;
+  --color-chart-crash: #e66767;
+  --color-chart-bsod: #9085e9;
+  --color-chart-whea: #d95926;
+  --color-chart-gpu-reset: #3987e5;
+  --color-chart-app-crash: #c98500;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -28,6 +33,7 @@
   --touch-target: 32px;
   --content-width: 960px;
   --sidebar-width: 240px;
+  --chart-height: 240px;
 }
 
 :root[data-theme='light'] {
@@ -41,6 +47,11 @@
   --color-on-accent: #eff1f5;
   --color-danger: #c80d36;
   --color-focus: #1c5ce0;
+  --color-chart-crash: #e34948;
+  --color-chart-bsod: #6250d6;
+  --color-chart-whea: #d55520;
+  --color-chart-gpu-reset: #2a78d6;
+  --color-chart-app-crash: #ad7400;
 }
 
 @media (any-pointer: coarse) {

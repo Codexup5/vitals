@@ -7,18 +7,26 @@ Before creating a component, hook or helper, look for it here.
 
 Import by the direct file path.
 
+- `@/shared/api/error-message` — `getErrorMessage`
+- `@/shared/api/ipc-error` — `IpcError`, `isIpcError` · types: `IpcErrorKind`
+- `@/shared/api/ipc` — `callCommand`
 - `@/shared/config/modules-texts` — `MODULE_TEXTS`
 - `@/shared/config/modules` — `MODULE_IDS`, `isModuleId`, `DEFAULT_MODULE` · types: `ModuleId`
-- `@/shared/config/query` — `STALE_POLICY`, `MAX_QUERY_RETRIES`
+- `@/shared/config/query` — `STALE_POLICY`, `MAX_QUERY_RETRIES`, `REQUEST_TIMEOUT_MS`
 - `@/shared/config/texts` — `COMMON_TEXTS`
-- `@/shared/lib/date` — `parseIsoDateTime`, `formatDate`
+- `@/shared/lib/date` — `parseIsoDateTime`, `fromUnixSeconds`, `formatDate`, `formatDateTime`, `formatCalendarDay`, `formatCalendarMonth`
 - `@/shared/lib/i18n` — `INTL_LOCALES`, `isLocale`, `detectLocale` · types: `Locale`, `Localized`
 - `@/shared/lib/preferences` — `parsePreferences`, `getPreferences`, `subscribePreferences`, `updatePreferences`, `initPreferences` · types: `Preferences`
 - `@/shared/lib/report-error` — `reportError`
 - `@/shared/model/use-preferences` — `usePreferences`, `useTexts`
 - `@/shared/ui/button/Button` — `Button`
 
+## entities
+
+- **`@/entities/health`** — `CHART_KINDS`, `EVENT_KINDS`, `HEALTH_RANGE_DAYS`, `HEALTH_RANGES`, `HEALTH_TEXTS`, `useRevealMinidump`, `healthEventsQuery`, `healthOverviewQuery`, `minidumpsQuery`, `HEALTH_SEARCH_DEFAULTS`, `healthSearchSchema` · types: `EventKind`, `HealthEventPage`, `HealthOverview`, `HealthPeriod`, `HealthRange`, `Minidump`
+
 ## pages
 
+- **`@/pages/errors`** — `ErrorsPage`
 - **`@/pages/module`** — `ModulePage`
 - **`@/pages/not-found`** — `NotFoundPage`

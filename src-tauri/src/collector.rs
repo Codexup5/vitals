@@ -68,6 +68,19 @@ pub fn summarize(
     }
 }
 
+pub fn summary_from(storage: &Storage, today: NaiveDate) -> Result<HealthSummary, StorageError> {
+    let (last_crash, first_day) = storage.crash_bounds()?;
+    let snapshot = storage.latest_snapshot()?;
+    let system_drive = std::env::var("SystemDrive").unwrap_or_else(|_| "C:".to_owned());
+    Ok(summarize(
+        last_crash,
+        first_day,
+        today,
+        snapshot.as_ref(),
+        system_drive.trim_end_matches(':'),
+    ))
+}
+
 fn local_midnight_utc(day: NaiveDate) -> DateTime<Utc> {
     Local
         .from_local_datetime(&day.and_time(chrono::NaiveTime::MIN))
@@ -139,16 +152,7 @@ impl Collector {
     }
 
     pub fn summary(&self, today: NaiveDate) -> Result<HealthSummary, CollectorError> {
-        let (last_crash, first_day) = self.storage.crash_bounds()?;
-        let snapshot = self.storage.latest_snapshot()?;
-        let system_drive = std::env::var("SystemDrive").unwrap_or_else(|_| "C:".to_owned());
-        Ok(summarize(
-            last_crash,
-            first_day,
-            today,
-            snapshot.as_ref(),
-            system_drive.trim_end_matches(':'),
-        ))
+        Ok(summary_from(&self.storage, today)?)
     }
 }
 

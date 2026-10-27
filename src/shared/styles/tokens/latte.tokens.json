@@ -70,6 +70,41 @@
         "components": [0.1098, 0.3608, 0.8784],
         "hex": "#1c5ce0"
       }
+    },
+    "chart-crash": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0.8902, 0.2863, 0.2824],
+        "hex": "#e34948"
+      }
+    },
+    "chart-bsod": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0.3843, 0.3137, 0.8392],
+        "hex": "#6250d6"
+      }
+    },
+    "chart-whea": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0.8353, 0.3333, 0.1255],
+        "hex": "#d55520"
+      }
+    },
+    "chart-gpu-reset": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0.1647, 0.4706, 0.8392],
+        "hex": "#2a78d6"
+      }
+    },
+    "chart-app-crash": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0.6784, 0.4549, 0],
+        "hex": "#ad7400"
+      }
     }
   }
 }

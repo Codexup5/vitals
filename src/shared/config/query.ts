@@ -7,3 +7,5 @@ export const STALE_POLICY = {
 } as const;
 
 export const MAX_QUERY_RETRIES = 2;
+
+export const REQUEST_TIMEOUT_MS = 15 * SECOND;

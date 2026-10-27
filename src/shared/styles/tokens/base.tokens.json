@@ -116,6 +116,66 @@
           "role": "ui"
         }
       }
+    },
+    "chart-crash": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0.902, 0.4039, 0.4039],
+        "hex": "#e66767"
+      },
+      "$extensions": {
+        "kit": {
+          "role": "ui"
+        }
+      }
+    },
+    "chart-bsod": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0.5647, 0.5216, 0.9137],
+        "hex": "#9085e9"
+      },
+      "$extensions": {
+        "kit": {
+          "role": "ui"
+        }
+      }
+    },
+    "chart-whea": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0.851, 0.349, 0.149],
+        "hex": "#d95926"
+      },
+      "$extensions": {
+        "kit": {
+          "role": "ui"
+        }
+      }
+    },
+    "chart-gpu-reset": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0.2235, 0.5294, 0.898],
+        "hex": "#3987e5"
+      },
+      "$extensions": {
+        "kit": {
+          "role": "ui"
+        }
+      }
+    },
+    "chart-app-crash": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0.7882, 0.5216, 0],
+        "hex": "#c98500"
+      },
+      "$extensions": {
+        "kit": {
+          "role": "ui"
+        }
+      }
     }
   },
   "space": {
@@ -254,6 +314,18 @@
     }
   },
   "sidebar-width": {
+    "$type": "dimension",
+    "$value": {
+      "value": 240,
+      "unit": "px"
+    },
+    "$extensions": {
+      "kit": {
+        "role": "size"
+      }
+    }
+  },
+  "chart-height": {
     "$type": "dimension",
     "$value": {
       "value": 240,
