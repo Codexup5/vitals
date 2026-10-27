@@ -37,6 +37,8 @@ pub struct AppState {
     pub updates: Arc<crate::updates::job::UpdatesJob>,
     pub mode: Arc<crate::runners::mode::ModeJob>,
     pub speed: Arc<crate::network::speed::SpeedJob>,
+    /// The devices scan: the button and the hourly scan of the sampler share it
+    pub devices: Arc<crate::network::devices::DevicesJob>,
 }
 
 #[derive(Debug, thiserror::Error)]

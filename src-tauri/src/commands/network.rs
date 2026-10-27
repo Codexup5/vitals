@@ -2,8 +2,10 @@
 
 use std::sync::Arc;
 
+use std::sync::atomic::Ordering;
+
 use tauri::State;
-use vitals_ipc::{NetworkOverview, SpeedStatus};
+use vitals_ipc::{DevicesOverview, NetworkOverview, SpeedStatus};
 
 use super::{AppState, CommandError, open};
 use crate::network;
@@ -36,6 +38,54 @@ pub fn network_probe(state: State<'_, AppState>) -> Result<NetworkOverview, Comm
         open(&state)?.put_net_sample(&sample)?;
     }
     overview_of(&state)
+}
+
+/// The devices the scans saw: this PC and the router by the way out, the new ones for a week.
+#[tauri::command(async)]
+pub fn devices_overview(state: State<'_, AppState>) -> Result<DevicesOverview, CommandError> {
+    let known = open(&state)?.known_devices()?;
+    #[cfg(windows)]
+    let way_out = network::windows::adapters()
+        .into_iter()
+        .find(|adapter| adapter.gateway.is_some());
+    #[cfg(not(windows))]
+    let way_out: Option<network::RawAdapter> = None;
+    let this = way_out
+        .as_ref()
+        .and_then(|adapter| adapter.mac)
+        .map(network::devices::mac_text);
+    let gateway = way_out
+        .as_ref()
+        .and_then(|adapter| adapter.gateway)
+        .map(|gateway| gateway.to_string());
+    let devices = network::devices::devices_of(
+        &known,
+        this.as_deref(),
+        gateway.as_deref(),
+        chrono::Utc::now().timestamp(),
+    );
+    Ok(DevicesOverview {
+        last_scan: known.iter().map(|device| device.last_seen).max(),
+        devices,
+        is_scanning: state.devices.is_running.load(Ordering::SeqCst),
+    })
+}
+
+/// Starts a scan of the network in the background unless one runs; the overview tells when it ends.
+#[tauri::command]
+pub fn devices_scan(state: State<'_, AppState>) -> bool {
+    if state.devices.is_running.load(Ordering::SeqCst) {
+        return false;
+    }
+    let job = Arc::clone(&state.devices);
+    let db_path = state.db_path.clone();
+    std::thread::Builder::new()
+        .name("devices".to_owned())
+        .spawn(move || {
+            job.run_once(|| network::devices::scan_and_store(&db_path));
+        })
+        .map_err(|error| tracing::error!("the devices scan did not start: {error}"))
+        .is_ok()
 }
 
 #[tauri::command]

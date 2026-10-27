@@ -1,6 +1,7 @@
 //! The network: the adapters that lead out of the PC, and the quality of the way out, measured by bursts of pings to
 //! the gateway and to one internet host every five minutes. A burst gives the mean round trip, the loss and the jitter.
 
+pub mod devices;
 pub mod speed;
 #[cfg(windows)]
 pub mod windows;
@@ -27,7 +28,11 @@ pub struct RawAdapter {
     pub if_type: u32,
     pub link_bps: u64,
     pub address: Option<Ipv4Addr>,
+    /// The length of the subnet prefix of `address`: 24 for a home network
+    pub prefix_len: Option<u8>,
     pub gateway: Option<Ipv4Addr>,
+    pub if_index: u32,
+    pub mac: Option<[u8; 6]>,
 }
 
 /// The adapters with a gateway: virtual switches (WSL, Hyper-V) and loopback have none.
@@ -176,7 +181,10 @@ mod tests {
             if_type: 6,
             link_bps,
             address: Some(Ipv4Addr::new(192, 168, 10, 6)),
+            prefix_len: Some(24),
             gateway,
+            if_index: 13,
+            mac: None,
         }
     }
 
