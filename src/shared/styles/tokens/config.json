@@ -1,0 +1,15 @@
+{
+  "prefix": "",
+  "names": {},
+  "layers": [
+    {
+      "file": "base.tokens.json",
+      "theme": "light"
+    },
+    {
+      "file": "dark.tokens.json",
+      "theme": "dark",
+      "selector": ["@media (prefers-color-scheme: dark)", ":root"]
+    }
+  ]
+}

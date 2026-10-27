@@ -1,0 +1,51 @@
+{
+  "color": {
+    "$type": "color",
+    "s1": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0.0627, 0.0667, 0.0784],
+        "hex": "#101114"
+      },
+      "$extensions": { "kit": { "role": "surface" } }
+    },
+    "text": {
+      "$extensions": { "kit": { "role": "text" } },
+      "max": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9569, 0.9608, 0.9686],
+          "hex": "#f4f5f7"
+        }
+      },
+      "ghost": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.2275, 0.2392, 0.2667],
+          "hex": "#3a3d44"
+        },
+        "$extensions": { "kit": { "incidental": true } }
+      }
+    }
+  },
+  "space": {
+    "$type": "dimension",
+    "$extensions": { "kit": { "role": "space" } },
+    "1": { "$value": { "value": 4, "unit": "px" } },
+    "hair": { "$value": { "value": 2, "unit": "px" } }
+  },
+  "font-size": {
+    "$type": "dimension",
+    "$extensions": { "kit": { "role": "font-size" } },
+    "body": { "$value": { "value": 15, "unit": "px" } }
+  },
+  "line-height": {
+    "$type": "number",
+    "body": {
+      "$value": 1.6,
+      "$extensions": {
+        "kit": { "role": "line-height", "fontSize": "{font-size.body}" }
+      }
+    }
+  }
+}

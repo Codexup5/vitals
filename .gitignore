@@ -1,0 +1,17 @@
+*.local
+.claude/settings.local.json
+.claude/worktrees/
+.claude/logs/
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+!.env.test
+!.env.development
+playwright-report/
+test-results/
+reports/
+.stryker-tmp/
+.playwright-mcp/

@@ -1,0 +1,16 @@
+dist
+coverage
+reports
+.stryker-tmp
+playwright-report
+test-results
+public/mockServiceWorker.js
+docs/context
+.claude/skills/accessibility
+.claude/skills/feature-sliced-design
+.claude/skills/frontend-design
+.claude/skills/playwright-best-practices
+.claude/skills/vercel-composition-patterns
+.claude/skills/vercel-react-best-practices
+.claude/skills/web-design-guidelines
+pnpm-lock.yaml

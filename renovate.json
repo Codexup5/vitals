@@ -1,0 +1,98 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "semanticCommits": "enabled",
+  "minimumReleaseAge": "3 days",
+  "platformAutomerge": false,
+  "packageRules": [
+    {
+      "matchPackageNames": ["@tanstack/**"],
+      "groupName": "tanstack"
+    },
+    {
+      "matchPackageNames": [
+        "vitest",
+        "@vitest/**",
+        "@testing-library/**",
+        "@playwright/test",
+        "msw",
+        "jsdom",
+        "@stryker-mutator/**"
+      ],
+      "groupName": "testing"
+    },
+    {
+      "matchPackageNames": [
+        "eslint",
+        "@eslint/**",
+        "eslint-plugin-*",
+        "typescript-eslint",
+        "@tanstack/eslint-plugin-query",
+        "stylelint",
+        "stylelint-config-*",
+        "prettier",
+        "@ianvs/prettier-plugin-sort-imports",
+        "steiger",
+        "@feature-sliced/**",
+        "knip",
+        "@commitlint/**"
+      ],
+      "groupName": "lint"
+    },
+    {
+      "matchPackageNames": ["@types/**"],
+      "groupName": "types"
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions"
+    },
+    {
+      "matchUpdateTypes": ["patch"],
+      "automerge": true
+    },
+    {
+      "matchManagers": ["custom.regex"],
+      "groupName": "mcp",
+      "automerge": false,
+      "minimumReleaseAge": "7 days"
+    },
+    {
+      "matchManagers": ["custom.regex"],
+      "matchPackageNames": ["@playwright/test"],
+      "groupName": "testing",
+      "minimumReleaseAge": "3 days"
+    },
+    {
+      "matchPackageNames": ["@anthropic-ai/claude-code"],
+      "groupName": "claude-code"
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/(^|/)\\.mcp\\.json$/",
+        "/(^|/)\\.claude-plugin/plugin\\.json$/",
+        "/(^|/)\\.github/workflows/ci\\.yml$/"
+      ],
+      "matchStrings": ["\"(?<depName>@?[^\"@\\s]+)@(?<currentValue>\\d[^\"]*)\""],
+      "datasourceTemplate": "npm"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/(^|/)\\.mcp\\.json$/"],
+      "matchStrings": [
+        "\"(?<depName>[a-z0-9.-]+(?::\\d+)?/[^\"@\\s:]+):(?<currentValue>[^\"@\\s]+)@(?<currentDigest>sha256:[a-f0-9]{64})\""
+      ],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/(^|/)scripts/lib/playwright-docker\\.mjs$/"],
+      "matchStrings": ["mcr\\.microsoft\\.com/playwright:v(?<currentValue>\\d[^'\"\\s]*?)-noble"],
+      "depNameTemplate": "@playwright/test",
+      "datasourceTemplate": "npm"
+    }
+  ]
+}

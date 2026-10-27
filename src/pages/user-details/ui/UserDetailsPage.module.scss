@@ -1,0 +1,31 @@
+.attributes {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.attribute {
+  display: grid;
+  gap: var(--space-1);
+
+  dt {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-caption);
+  }
+
+  dd {
+    margin: 0;
+  }
+}
+
+.actions,
+.confirm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.confirm p {
+  margin: 0;
+}

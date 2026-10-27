@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "--init",
+        "--entrypoint",
+        "sh",
+        "mcr.microsoft.com/playwright/mcp:v0.0.83@sha256:690763cbb437ee7233f538a953bb5390bf03791eb5c965b471e59d17a6132fcb",
+        "-c",
+        "printf '%s' '{\"browser\":{\"launchOptions\":{\"args\":[\"--host-resolver-rules=MAP localhost host.docker.internal\"]}}}' > /tmp/mcp.json && exec node /app/cli.js --headless --browser chromium --no-sandbox --isolated --config /tmp/mcp.json"
+      ]
+    },
+    "sentry": {
+      "type": "http",
+      "url": "https://mcp.sentry.dev/mcp"
+    }
+  }
+}
