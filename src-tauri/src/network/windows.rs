@@ -9,14 +9,18 @@ use std::time::Duration;
 
 use windows::Win32::Foundation::{ERROR_BUFFER_OVERFLOW, HANDLE, NO_ERROR};
 use windows::Win32::NetworkManagement::IpHelper::{
-    GAA_FLAG_INCLUDE_GATEWAYS, GAA_FLAG_SKIP_ANYCAST, GAA_FLAG_SKIP_MULTICAST,
-    GetAdaptersAddresses, ICMP_ECHO_REPLY, IP_ADAPTER_ADDRESSES_LH, IcmpCloseHandle,
-    IcmpCreateFile, IcmpSendEcho,
+    FreeMibTable, GAA_FLAG_INCLUDE_GATEWAYS, GAA_FLAG_SKIP_ANYCAST, GAA_FLAG_SKIP_MULTICAST,
+    GetAdaptersAddresses, GetIpNetTable2, ICMP_ECHO_REPLY, IP_ADAPTER_ADDRESSES_LH,
+    IcmpCloseHandle, IcmpCreateFile, IcmpSendEcho, MIB_IPNET_TABLE2,
 };
 use windows::Win32::NetworkManagement::Ndis::IfOperStatusUp;
-use windows::Win32::Networking::WinSock::{AF_INET, SOCKADDR, SOCKADDR_IN, SOCKET_ADDRESS};
+use windows::Win32::Networking::WinSock::{
+    AF_INET, GetNameInfoW, NI_MAXHOST, NI_NAMEREQD, NlnsIncomplete, NlnsUnreachable, SOCKADDR,
+    SOCKADDR_IN, SOCKET_ADDRESS, WSADATA, WSAStartup, socklen_t,
+};
 
 use super::RawAdapter;
+use super::devices::Neighbor;
 
 /// `IF_TYPE_ETHERNET_CSMACD` and `IF_TYPE_IEEE80211`
 const ETHERNET: u32 = 6;
@@ -94,9 +98,9 @@ pub fn adapters() -> Vec<RawAdapter> {
             continue;
         }
         // SAFETY: the first unicast and gateway entries are null or live in `buffer`.
-        let address = unsafe { adapter.FirstUnicastAddress.as_ref() }
-            // SAFETY: as above, their socket addresses live in `buffer`.
-            .and_then(|unicast| unsafe { ipv4_of(&unicast.Address) });
+        let unicast = unsafe { adapter.FirstUnicastAddress.as_ref() };
+        // SAFETY: as above, its socket address lives in `buffer`.
+        let address = unicast.and_then(|unicast| unsafe { ipv4_of(&unicast.Address) });
         // SAFETY: as above.
         let gateway = unsafe { adapter.FirstGatewayAddress.as_ref() }
             // SAFETY: as above.
@@ -107,7 +111,13 @@ pub fn adapters() -> Vec<RawAdapter> {
             if_type: adapter.IfType,
             link_bps: adapter.TransmitLinkSpeed,
             address,
+            prefix_len: unicast.map(|unicast| unicast.OnLinkPrefixLength),
             gateway,
+            // SAFETY: Length and IfIndex are the plain view of the leading union.
+            if_index: unsafe { adapter.Anonymous1.Anonymous.IfIndex },
+            mac: (adapter.PhysicalAddressLength == 6)
+                .then(|| adapter.PhysicalAddress[..6].try_into().ok())
+                .flatten(),
         });
     }
     adapters
@@ -166,4 +176,87 @@ impl Drop for Pinger {
             tracing::warn!("could not close the ICMP handle: {error}");
         }
     }
+}
+
+/// The neighbours Windows knows on one interface: the IPv4 entries of its neighbour (ARP) cache with a MAC.
+pub fn neighbors(if_index: u32) -> Vec<Neighbor> {
+    let mut table: *mut MIB_IPNET_TABLE2 = std::ptr::null_mut();
+    // SAFETY: `table` is a valid out pointer; the table is freed below with FreeMibTable.
+    let answer = unsafe { GetIpNetTable2(AF_INET, &raw mut table) };
+    if answer != NO_ERROR || table.is_null() {
+        tracing::warn!("GetIpNetTable2 failed: {answer:?}");
+        return Vec::new();
+    }
+    // SAFETY: the call filled `table` with NumEntries rows that follow its header.
+    let rows = unsafe {
+        std::slice::from_raw_parts(
+            (*table).Table.as_ptr(),
+            usize::try_from((*table).NumEntries).unwrap_or(0),
+        )
+    };
+    let neighbors = rows
+        .iter()
+        .filter(|row| {
+            row.InterfaceIndex == if_index
+                && row.State != NlnsUnreachable
+                && row.State != NlnsIncomplete
+                && row.PhysicalAddressLength == 6
+        })
+        .filter_map(|row| {
+            // SAFETY: an AF_INET row holds the Ipv4 view of the union.
+            let inet = unsafe { row.Address.Ipv4 };
+            // SAFETY: S_addr is the plain u32 view of the address union.
+            let raw = unsafe { inet.sin_addr.S_un.S_addr };
+            let mac: [u8; 6] = row.PhysicalAddress[..6].try_into().ok()?;
+            Some(Neighbor {
+                ip: Ipv4Addr::from(raw.to_ne_bytes()),
+                mac,
+            })
+        })
+        .collect();
+    // SAFETY: the table came from GetIpNetTable2 and is freed once, here.
+    unsafe { FreeMibTable(table.cast()) };
+    neighbors
+}
+
+/// Winsock must be started once in the process before a name lookup.
+fn start_winsock() -> bool {
+    static STARTED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *STARTED.get_or_init(|| {
+        let mut data = WSADATA::default();
+        // SAFETY: `data` is a live WSADATA the call fills; version 2.2.
+        unsafe { WSAStartup(0x0202, &raw mut data) == 0 }
+    })
+}
+
+/// The name a host answers to: DNS of the router, then `LLMNR` and `NetBIOS`, as Windows resolves it.
+pub fn host_name(ip: Ipv4Addr) -> Option<String> {
+    if !start_winsock() {
+        return None;
+    }
+    let mut address = SOCKADDR_IN {
+        sin_family: AF_INET,
+        ..SOCKADDR_IN::default()
+    };
+    address.sin_addr.S_un.S_addr = u32::from_ne_bytes(ip.octets());
+    let mut name = vec![0u16; usize::try_from(NI_MAXHOST).unwrap_or(1025)];
+    // SAFETY: `address` is a valid SOCKADDR_IN of the length passed, `name` a live buffer the call fills.
+    let answer = unsafe {
+        GetNameInfoW(
+            (&raw const address).cast::<SOCKADDR>(),
+            socklen_t(i32::try_from(size_of::<SOCKADDR_IN>()).unwrap_or(16)),
+            Some(&mut name),
+            None,
+            i32::try_from(NI_NAMEREQD).unwrap_or(4),
+        )
+    };
+    if answer != 0 {
+        return None;
+    }
+    let length = name
+        .iter()
+        .position(|unit| *unit == 0)
+        .unwrap_or(name.len());
+    let name = String::from_utf16_lossy(&name[..length]);
+    (!name.is_empty() && name != ip.to_string()).then_some(name)
 }

@@ -32,6 +32,8 @@ pub mod command {
     pub const NETWORK_PROBE: &str = "network_probe";
     pub const SPEED_TEST_START: &str = "speed_test_start";
     pub const SPEED_TEST_STATUS: &str = "speed_test_status";
+    pub const DEVICES_OVERVIEW: &str = "devices_overview";
+    pub const DEVICES_SCAN: &str = "devices_scan";
     pub const LOG_UI_ERROR: &str = "log_ui_error";
 }
 
@@ -745,6 +747,48 @@ pub struct SpeedResult {
 pub struct SpeedStatus {
     pub is_running: bool,
     pub last: Option<SpeedResult>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DeviceRole {
+    /// This PC
+    This,
+    /// The router: the gateway of the way out
+    Gateway,
+    Other,
+}
+
+/// A device of the local network, as the scans saw it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Device {
+    /// `dc:51:93:a5:61:44`
+    pub mac: String,
+    pub ip: String,
+    pub name: Option<String>,
+    /// The maker of its network card by the IEEE registry
+    pub maker: Option<String>,
+    /// A MAC the device made up (phones and tablets do per network): it has no maker
+    pub is_random_mac: bool,
+    pub role: DeviceRole,
+    /// Unix seconds
+    pub first_seen: i64,
+    pub last_seen: i64,
+    /// Seen by the last scan
+    pub is_online: bool,
+    /// First seen within the last week, after the first scan of the panel
+    pub is_new: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DevicesOverview {
+    /// The online first, then by address
+    pub devices: Vec<Device>,
+    /// Unix seconds of the last scan
+    pub last_scan: Option<i64>,
+    pub is_scanning: bool,
 }
 
 #[cfg(test)]

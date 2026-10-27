@@ -48,6 +48,13 @@ const MIGRATIONS: &[&str] = &[
        internet_loss REAL NOT NULL,
        internet_jitter REAL
      );",
+    "CREATE TABLE devices (
+       mac TEXT PRIMARY KEY,
+       ip TEXT NOT NULL,
+       name TEXT,
+       first_seen INTEGER NOT NULL,
+       last_seen INTEGER NOT NULL
+     );",
 ];
 
 pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {

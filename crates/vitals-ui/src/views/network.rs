@@ -1,7 +1,10 @@
 //! The network screen: the counters of the last measurement, the latency chart of the day, the adapters, the speed
 //! test.
 
-use vitals_ipc::{Adapter, AdapterKind, NetSample, NetworkOverview, Probe, SpeedStatus};
+use vitals_ipc::{
+    Adapter, AdapterKind, Device, DeviceRole, DevicesOverview, NetSample, NetworkOverview, Probe,
+    SpeedStatus,
+};
 
 use crate::format;
 use crate::i18n::Locale;
@@ -408,6 +411,91 @@ pub fn speed_line(status: &SpeedStatus, locale: Locale) -> Option<(String, Tone)
     ))
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeviceRow {
+    pub key: String,
+    pub title: String,
+    pub address: String,
+    /// The maker, or why there is none
+    pub detail: Option<String>,
+    pub tags: Vec<(&'static str, Tone)>,
+    pub seen: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DevicesReady {
+    pub summary: String,
+    pub last_scan: String,
+    pub rows: Vec<DeviceRow>,
+    pub is_scanning: bool,
+}
+
+fn day_time(seconds: i64, locale: Locale) -> String {
+    format::local_time(seconds).map_or_else(String::new, |time| format::date_time(time, locale))
+}
+
+fn device_row(device: &Device, locale: Locale) -> DeviceRow {
+    let texts = &locale.texts().network;
+    let mut tags = Vec::new();
+    match device.role {
+        DeviceRole::This => tags.push((texts.this_pc, Tone::Accent)),
+        DeviceRole::Gateway => tags.push((texts.router_role, Tone::Accent)),
+        DeviceRole::Other => {}
+    }
+    if device.is_new {
+        tags.push((texts.new_device, Tone::Warn));
+    }
+    if !device.is_online {
+        tags.push((texts.offline_device, Tone::Accent));
+    }
+    if device.is_random_mac {
+        tags.push((texts.random_mac, Tone::Accent));
+    }
+    DeviceRow {
+        key: device.mac.clone(),
+        title: device
+            .name
+            .clone()
+            .or_else(|| device.maker.clone())
+            .unwrap_or_else(|| texts.unknown_device.to_owned()),
+        address: format!("{} · {}", device.ip, device.mac),
+        // The maker under a name; a device without a name already has its maker as the title
+        detail: if device.is_random_mac {
+            Some(texts.random_hint.to_owned())
+        } else {
+            device.name.as_ref().and(device.maker.clone())
+        },
+        tags,
+        seen: if device.is_online {
+            (texts.first_seen)(&day_time(device.first_seen, locale))
+        } else {
+            (texts.last_seen)(&day_time(device.last_seen, locale))
+        },
+    }
+}
+
+pub fn devices_view(overview: &DevicesOverview, locale: Locale) -> DevicesReady {
+    let texts = &locale.texts().network;
+    let online = overview
+        .devices
+        .iter()
+        .filter(|device| device.is_online)
+        .count();
+    DevicesReady {
+        summary: (texts.devices_count)(online, overview.devices.len()),
+        last_scan: overview.last_scan.map_or_else(
+            || texts.devices_never.to_owned(),
+            |time| (texts.devices_last)(&day_time(time, locale)),
+        ),
+        rows: overview
+            .devices
+            .iter()
+            .map(|device| device_row(device, locale))
+            .collect(),
+        is_scanning: overview.is_scanning,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use vitals_ipc::SpeedResult;
@@ -563,6 +651,65 @@ mod tests {
         assert_eq!(ready.chart, None);
         assert_eq!(ready.stats[3].value, "—");
         assert_eq!(ready.stats[3].hint.as_deref(), Some("not measured"));
+    }
+
+    fn device(name: Option<&str>, maker: Option<&str>, role: DeviceRole) -> Device {
+        Device {
+            mac: "dc:51:93:a5:61:44".to_owned(),
+            ip: "192.168.10.1".to_owned(),
+            name: name.map(str::to_owned),
+            maker: maker.map(str::to_owned),
+            is_random_mac: maker.is_none(),
+            role,
+            first_seen: 0,
+            last_seen: 0,
+            is_online: true,
+            is_new: false,
+        }
+    }
+
+    #[test]
+    fn a_device_is_named_by_its_name_then_its_maker() {
+        let router = device_row(&device(None, Some("zte"), DeviceRole::Gateway), Locale::En);
+        assert_eq!(router.title, "zte");
+        assert_eq!(router.tags, [("Router", Tone::Accent)]);
+        assert_eq!(router.address, "192.168.10.1 · dc:51:93:a5:61:44");
+        assert_eq!(router.detail, None);
+        let mut phone = device(None, None, DeviceRole::Other);
+        phone.is_new = true;
+        phone.is_online = false;
+        let row = device_row(&phone, Locale::En);
+        assert_eq!(row.title, "Unknown device");
+        assert_eq!(
+            row.tags.iter().map(|tag| tag.0).collect::<Vec<_>>(),
+            ["New", "Offline", "Random MAC"]
+        );
+        assert_eq!(
+            row.detail.as_deref(),
+            Some(Locale::En.texts().network.random_hint)
+        );
+        let tv = device_row(
+            &device(Some("TV"), Some("Samsung"), DeviceRole::Other),
+            Locale::En,
+        );
+        assert_eq!(
+            (tv.title.as_str(), tv.detail.as_deref()),
+            ("TV", Some("Samsung"))
+        );
+    }
+
+    #[test]
+    fn the_devices_summary_counts_the_online() {
+        let mut offline = device(None, Some("Samsung"), DeviceRole::Other);
+        offline.is_online = false;
+        let overview = DevicesOverview {
+            devices: vec![device(None, Some("zte"), DeviceRole::Gateway), offline],
+            last_scan: None,
+            is_scanning: false,
+        };
+        let ready = devices_view(&overview, Locale::En);
+        assert_eq!(ready.summary, "1 online of 2 known");
+        assert_eq!(ready.last_scan, "No search for devices yet.");
     }
 
     #[test]

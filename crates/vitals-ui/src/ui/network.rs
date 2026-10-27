@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use vitals_ipc::{NetworkOverview, SpeedStatus, command};
+use vitals_ipc::{DevicesOverview, NetworkOverview, SpeedStatus, command};
 
 use super::widgets::{Eyebrow, Failure, Tag};
 use crate::i18n::Locale;
@@ -15,7 +15,7 @@ use crate::preferences::PreferencesStore;
 use crate::views::disks::Tone;
 use crate::views::network::{
     AdapterRow, CHART_HEIGHT, CHART_WIDTH, LatencyChart, NetworkView, RecentRow, Stat, Stretch,
-    network_view, speed_line,
+    devices_view, network_view, speed_line,
 };
 
 const STATUS_POLL: Duration = Duration::from_secs(1);
@@ -122,6 +122,7 @@ pub fn NetworkPage() -> impl IntoView {
                         <Stats stats=ready.stats />
                         <Latency chart=ready.chart recent=ready.recent host=ready.internet_host locale=locale() />
                         <SpeedTest status=speed locale=Signal::derive(locale) />
+                        <Devices locale=Signal::derive(locale) />
                         <Adapters rows=ready.adapters locale=locale() />
                     }
                         .into_any()
@@ -310,6 +311,103 @@ fn SpeedTest(status: Answer<SpeedStatus>, locale: Signal<Locale>) -> impl IntoVi
                 }}
                 {move || failed.get().then(|| view! { <p role="alert">{texts().speed_start_failed}</p> })}
             </div>
+        </section>
+    }
+}
+
+fn is_scanning(devices: Answer<DevicesOverview>) -> bool {
+    devices
+        .get()
+        .and_then(Result::ok)
+        .is_some_and(|overview| overview.is_scanning)
+}
+
+#[component]
+fn Devices(locale: Signal<Locale>) -> impl IntoView {
+    let texts = move || &locale.get().texts().network;
+    let devices = LocalResource::new(|| async {
+        ipc::call::<DevicesOverview, _>(command::DEVICES_OVERVIEW, &()).await
+    });
+    // While a scan runs, the list is read again every second until it ends
+    let was_scanning = StoredValue::new(false);
+    Effect::new(move |_| was_scanning.set_value(is_scanning(devices)));
+    if let Ok(poll) = set_interval_with_handle(
+        move || {
+            if was_scanning.get_value() {
+                devices.refetch();
+            }
+        },
+        STATUS_POLL,
+    ) {
+        on_cleanup(move || poll.clear());
+    }
+    let failed = RwSignal::new(false);
+    let scan = move || {
+        failed.set(false);
+        spawn_local(async move {
+            let answer: Result<bool, IpcError> = ipc::call(command::DEVICES_SCAN, &()).await;
+            if failed.try_set(answer.is_err()).is_none() {
+                devices.refetch();
+            }
+        });
+    };
+    view! {
+        <section class="section" aria-labelledby="devices-title">
+            <h2 id="devices-title">{move || texts().devices_title}</h2>
+            <p class="muted">{move || texts().devices_hint}</p>
+            {move || failed.get().then(|| view! { <p role="alert">{texts().devices_failed}</p> })}
+            {move || match devices.get() {
+                None => view! { <div class="skeleton" aria-busy="true"></div> }.into_any(),
+                Some(Err(error)) => {
+                    view! { <Failure message=error.text(locale.get()) retry=texts().devices_scan on_retry=move || devices.refetch() /> }
+                        .into_any()
+                }
+                Some(Ok(overview)) => {
+                    let ready = devices_view(&overview, locale.get());
+                    let busy = ready.is_scanning;
+                    view! {
+                        <div class="card speed">
+                            <button type="button" disabled=busy aria-busy=busy.to_string() on:click=move |_| scan()>
+                                {if busy { texts().devices_scanning } else { texts().devices_scan }}
+                            </button>
+                            <p class="muted" role="status">{ready.summary} " · " {ready.last_scan}</p>
+                        </div>
+                        {(!ready.rows.is_empty())
+                            .then(|| {
+                                view! {
+                                    <div class="card">
+                                        <ul class="rows">
+                                            {ready
+                                                .rows
+                                                .into_iter()
+                                                .map(|row| {
+                                                    view! {
+                                                        <li class="row">
+                                                            <div class="row-main">
+                                                                <span class="row-title">{row.title}</span>
+                                                                <span class="mono nowrap muted">{row.seen}</span>
+                                                            </div>
+                                                            <span class="mono muted wrap">{row.address}</span>
+                                                            {row.detail.map(|detail| view! { <span class="muted">{detail}</span> })}
+                                                            <div class="row-tags">
+                                                                {row
+                                                                    .tags
+                                                                    .into_iter()
+                                                                    .map(|(word, tone)| view! { <Tag tone>{word}</Tag> })
+                                                                    .collect_view()}
+                                                            </div>
+                                                        </li>
+                                                    }
+                                                })
+                                                .collect_view()}
+                                        </ul>
+                                    </div>
+                                }
+                            })}
+                    }
+                        .into_any()
+                }
+            }}
         </section>
     }
 }

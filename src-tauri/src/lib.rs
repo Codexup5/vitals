@@ -59,12 +59,15 @@ pub fn run() -> ExitCode {
             commands::runners::mode_status,
             commands::network::network_overview,
             commands::network::network_probe,
+            commands::network::devices_overview,
+            commands::network::devices_scan,
             commands::network::speed_test_start,
             commands::network::speed_test_status
         ])
         .setup(|app| {
             let data_dir = app_paths::ensure_data_dir()?;
             logging::init(&data_dir);
+            let devices = std::sync::Arc::<network::devices::DevicesJob>::default();
             app.manage(commands::AppState {
                 db_path: data_dir.join(storage::DB_FILE),
                 data_dir: data_dir.clone(),
@@ -73,10 +76,11 @@ pub fn run() -> ExitCode {
                 updates: std::sync::Arc::default(),
                 mode: std::sync::Arc::default(),
                 speed: std::sync::Arc::default(),
+                devices: std::sync::Arc::clone(&devices),
             });
             let is_russian = system::windows::ui_language_is_russian();
             tray::create(app.handle(), is_russian)?;
-            start_network_sampler(data_dir.clone());
+            start_network_sampler(data_dir.clone(), devices);
             start_collector(app.handle().clone(), data_dir, is_russian);
             Ok(())
         })
@@ -156,7 +160,10 @@ fn start_collector(app: AppHandle, data_dir: PathBuf, is_russian: bool) {
 }
 
 /// Measures the way out every five minutes, as the collector counts events: the network chart needs no open window.
-fn start_network_sampler(data_dir: PathBuf) {
+/// Every hour it also looks for the devices of the network, so a new one shows up without a click.
+fn start_network_sampler(data_dir: PathBuf, devices: std::sync::Arc<network::devices::DevicesJob>) {
+    /// Twelve rounds of five minutes
+    const SCAN_EVERY: u32 = 12;
     let spawned = std::thread::Builder::new()
         .name("network".to_owned())
         .spawn(move || {
@@ -169,7 +176,13 @@ fn start_network_sampler(data_dir: PathBuf) {
                     return;
                 }
             };
+            let db_path = data_dir.join(storage::DB_FILE);
+            let mut round = 0_u32;
             loop {
+                if round.is_multiple_of(SCAN_EVERY) {
+                    devices.run_once(|| network::devices::scan_and_store(&db_path));
+                }
+                round = round.wrapping_add(1);
                 let now = Utc::now().timestamp();
                 #[cfg(windows)]
                 if let Some(sample) = network::sample(now)

@@ -5,8 +5,10 @@
 //! - `check` fails on a stale `_tokens.scss`, a design rule or a style rule: the design gates of the kit, in Rust
 //! - `commits <range>` checks the commit headers of a range, `origin/main..HEAD` by default
 //! - `header <text>` checks one header, the title of a pull request
+//! - `oui <oui.csv>` rebuilds `src-tauri/data/oui.tsv` from the IEEE registry of MAC prefixes
 
 mod commits;
+mod oui;
 mod styles;
 mod tokens;
 
@@ -95,6 +97,14 @@ fn commit_headers(range: &str) -> Result<Vec<String>, String> {
         .collect())
 }
 
+fn oui_data(csv: &str) -> Result<Vec<String>, String> {
+    let text = fs::read_to_string(csv).map_err(|error| format!("{csv}: {error}"))?;
+    let data = root().join("src-tauri").join("data");
+    fs::create_dir_all(&data).map_err(|error| error.to_string())?;
+    fs::write(data.join("oui.tsv"), oui::compact(&text)).map_err(|error| error.to_string())?;
+    Ok(Vec::new())
+}
+
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let outcome = match args.first().map(String::as_str) {
@@ -109,8 +119,11 @@ fn main() -> ExitCode {
                 .into_iter()
                 .collect())
         }
+        Some("oui") => args
+            .get(1)
+            .map_or_else(|| Err("usage: cargo xtask oui <oui.csv>".to_owned()), |csv| oui_data(csv)),
         _ => Err(
-            "usage: cargo xtask styles | tokens | check | commits [range] | header <text>"
+            "usage: cargo xtask styles | tokens | check | commits [range] | header <text> | oui <oui.csv>"
                 .to_owned(),
         ),
     };
