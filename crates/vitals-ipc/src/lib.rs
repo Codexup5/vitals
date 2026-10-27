@@ -34,6 +34,8 @@ pub mod command {
     pub const SPEED_TEST_STATUS: &str = "speed_test_status";
     pub const DEVICES_OVERVIEW: &str = "devices_overview";
     pub const DEVICES_SCAN: &str = "devices_scan";
+    pub const STARTUP_OVERVIEW: &str = "startup_overview";
+    pub const STARTUP_SET: &str = "startup_set";
     pub const LOG_UI_ERROR: &str = "log_ui_error";
 }
 
@@ -789,6 +791,125 @@ pub struct DevicesOverview {
     /// Unix seconds of the last scan
     pub last_scan: Option<i64>,
     pub is_scanning: bool,
+}
+
+/// Where Windows keeps a program that starts at sign-in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum StartupSource {
+    /// `HKCU\…\Run`: this user
+    UserRun,
+    /// `HKLM\…\Run`: every user
+    MachineRun,
+    /// `HKLM\…\WOW6432Node\…\Run`: every user, a 32-bit program
+    MachineRun32,
+    /// The Startup folder of this user
+    UserFolder,
+    /// The Startup folder of every user
+    MachineFolder,
+}
+
+impl StartupSource {
+    pub const ALL: [Self; 5] = [
+        Self::UserRun,
+        Self::MachineRun,
+        Self::MachineRun32,
+        Self::UserFolder,
+        Self::MachineFolder,
+    ];
+
+    /// Turning an entry of every user on or off needs admin rights
+    #[must_use]
+    pub const fn is_machine(self) -> bool {
+        matches!(
+            self,
+            Self::MachineRun | Self::MachineRun32 | Self::MachineFolder
+        )
+    }
+}
+
+/// Task Manager's scale of what a program costs the sign-in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ImpactLevel {
+    Low,
+    Medium,
+    High,
+}
+
+/// What a program and the processes it started cost the first two minutes after sign-in, on average.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StartupImpact {
+    pub level: ImpactLevel,
+    pub cpu_ms: u64,
+    pub disk_bytes: u64,
+    /// The sign-ins it was seen in
+    pub boots: u32,
+}
+
+/// What the Authenticode signature of a file says.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SignatureState {
+    /// Signed, by the file itself or by a Windows catalog, and the chain is trusted
+    Valid,
+    /// A signature is there but does not hold: the file changed, or its certificate is not trusted
+    Invalid,
+    Unsigned,
+    /// An alias of an app of the Microsoft Store: Windows checked its package when it was installed
+    StoreApp,
+    /// The file the entry starts does not exist
+    NoFile,
+}
+
+/// A program Windows starts at sign-in.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StartupEntry {
+    pub source: StartupSource,
+    /// The value name of a Run key, or the file name in a Startup folder
+    pub name: String,
+    /// What Windows runs: the command of the Run value or the target and arguments of the shortcut
+    pub command: String,
+    pub image: Option<PathBuf>,
+    pub is_enabled: bool,
+    /// Unix seconds of when it was turned off, as Windows recorded it
+    pub disabled_at: Option<i64>,
+    pub signature: SignatureState,
+    /// The subject of the signing certificate
+    pub signer: Option<String>,
+    /// The company of the file's version resource: what the file says of itself, not verified
+    pub company: Option<String>,
+    /// A part of Windows: shown, never turned off
+    pub is_protected: bool,
+    /// None when no recent sign-in saw it run
+    pub impact: Option<StartupImpact>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StartupOverview {
+    pub entries: Vec<StartupEntry>,
+    /// The sign-ins Windows kept a trace of
+    pub measured_boots: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StartupSetArgs {
+    pub source: StartupSource,
+    pub name: String,
+    pub enable: bool,
+}
+
+/// How a change that may need admin rights ended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ChangeOutcome {
+    Done,
+    /// The user said no at the UAC prompt: nothing changed
+    Declined,
 }
 
 #[cfg(test)]

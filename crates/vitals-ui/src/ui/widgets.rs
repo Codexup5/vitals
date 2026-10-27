@@ -3,6 +3,7 @@
 use leptos::prelude::*;
 
 use crate::views::disks::Tone;
+use crate::views::network::Stat;
 
 /// The mono label above a heading: what the section is and where its data comes from
 #[component]
@@ -30,5 +31,26 @@ pub fn Failure(
                 {retry}
             </button>
         </div>
+    }
+}
+
+/// The counters above a screen: a value, its label, a hint; the tone only repeats what the value says
+#[component]
+pub fn Stats(stats: Vec<Stat>) -> impl IntoView {
+    view! {
+        <ul class="stats">
+            {stats
+                .into_iter()
+                .map(|stat| {
+                    view! {
+                        <li class="stat" data-tone=stat.tone.map(Tone::code)>
+                            <span class="stat-value">{stat.value}</span>
+                            <span>{stat.label}</span>
+                            {stat.hint.map(|hint| view! { <span class="muted">{hint}</span> })}
+                        </li>
+                    }
+                })
+                .collect_view()}
+        </ul>
     }
 }

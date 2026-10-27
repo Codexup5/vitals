@@ -4,6 +4,7 @@ mod collector;
 mod commands;
 mod disks;
 mod dumps;
+mod elevated;
 mod events;
 mod import;
 mod logging;
@@ -11,9 +12,11 @@ mod network;
 mod process;
 mod runners;
 mod scan;
+mod startup;
 mod storage;
 mod system;
 mod tray;
+mod trust;
 mod updates;
 
 use std::path::{Path, PathBuf};
@@ -32,7 +35,7 @@ pub const MAIN_WINDOW: &str = "main";
 pub fn run() -> ExitCode {
     // The same exe under UAC for one admin action: it runs the action and exits, no window, no tray
     let args: Vec<String> = std::env::args().collect();
-    if let Some(code) = cleanup::elevated::handle(&args) {
+    if let Some(code) = elevated::handle(&args) {
         return code;
     }
     let result = tauri::Builder::default()
@@ -62,7 +65,9 @@ pub fn run() -> ExitCode {
             commands::network::devices_overview,
             commands::network::devices_scan,
             commands::network::speed_test_start,
-            commands::network::speed_test_status
+            commands::network::speed_test_status,
+            commands::startup::startup_overview,
+            commands::startup::startup_set
         ])
         .setup(|app| {
             let data_dir = app_paths::ensure_data_dir()?;

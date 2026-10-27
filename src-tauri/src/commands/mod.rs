@@ -7,6 +7,7 @@
 pub mod disks;
 pub mod network;
 pub mod runners;
+pub mod startup;
 pub mod updates;
 
 use std::path::PathBuf;

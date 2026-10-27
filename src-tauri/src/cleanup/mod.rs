@@ -9,8 +9,6 @@ pub mod plan;
 mod process;
 mod snapshot;
 mod sources;
-#[cfg(windows)]
-mod windows;
 
 pub use vitals_ipc::{Candidate, CandidateKind, Group};
 
