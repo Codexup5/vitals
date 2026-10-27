@@ -43,7 +43,13 @@
     "canon:check": "node scripts/gen-canon.mjs --check",
     "mutation": "stryker run",
     "verify": "pnpm typecheck && pnpm lint && pnpm lint:styles && pnpm tokens:check && pnpm csp:check && pnpm lint:arch && pnpm lint:placement && pnpm format:check && pnpm knip && pnpm context:check && pnpm canon:check && pnpm run --if-present conventions && pnpm test",
-    "prepare": "husky"
+    "prepare": "husky",
+    "tauri": "tauri",
+    "rust:fmt": "cargo fmt --manifest-path src-tauri/Cargo.toml --check",
+    "rust:lint": "cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings",
+    "rust:test": "cargo test --manifest-path src-tauri/Cargo.toml --locked",
+    "rust": "pnpm rust:fmt && pnpm rust:lint && pnpm rust:test",
+    "conventions": "pnpm rust"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.104.1",
@@ -64,6 +70,7 @@
     "@size-limit/preset-app": "^14.1.0",
     "@stryker-mutator/core": "^10.0.0",
     "@tanstack/eslint-plugin-query": "^5.104.1",
+    "@tauri-apps/cli": "2.12.4",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.7",

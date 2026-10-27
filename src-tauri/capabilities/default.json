@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "The main window: core events only; every command a module adds gets its own permission here",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

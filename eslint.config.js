@@ -96,6 +96,8 @@ export default tseslint.config(
   {
     ignores: [
       'dist',
+      'src-tauri/target',
+      'src-tauri/gen',
       'coverage',
       'public',
       'node_modules',

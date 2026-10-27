@@ -14,3 +14,5 @@ docs/context
 .claude/skills/vercel-react-best-practices
 .claude/skills/web-design-guidelines
 pnpm-lock.yaml
+src-tauri/target
+src-tauri/gen

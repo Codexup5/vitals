@@ -101,5 +101,5 @@
       "Read(./.env.*.local)"
     ]
   },
-  "enabledMcpjsonServers": ["playwright", "sentry"]
+  "enabledMcpjsonServers": ["playwright"]
 }

@@ -1,3 +1,30 @@
+# Vitals
+
+A local Windows PC health panel: Tauri 2 (Rust) with a React front end in WebView2. The decisions are in the brief,
+`C:\Users\olegs\Desktop\Code\vitals-brief.md` (kept outside the repository: it holds the owner's machine facts). The
+kit sections below are the front-end canon; this section is what Vitals changes in it, and it wins over them.
+
+- **No back end, no telemetry.** Data comes from Rust commands (`invoke`), not HTTP: there is no api adapter, no MSW,
+  no Sentry, no Web Vitals beacon. Nothing leaves the PC except the user's own Telegram and the Vitals update check.
+- **The reference app is not in this repository** (`kit-lock.json` `reference: false`): copy from
+  `C:\Users\olegs\Desktop\Code\Project\kit\packs\web-react\src\entities\user` and `src\pages\user-*` there.
+- **Texts are ru and en.** A catalog is `const ru = {…} as const` plus `X_TEXTS: Localized<typeof ru> = { ru, en }`
+  (`shared/lib/i18n.ts`): a missing or extra key in `en` fails tsc. A component reads it with `useTexts(X_TEXTS)`.
+- **Theme and language** live in `shared/lib/preferences.ts` (Mocha by default, Latte on `data-theme='light'`).
+- **Rust** lives in `src-tauri/`; its canon is `.claude/rules/rust.md`.
+
+```bash
+pnpm tauri dev      # the panel with hot reload (Vite on 127.0.0.1:3000 inside the Tauri window)
+pnpm tauri build    # the release exe and the NSIS installer in src-tauri/target/release
+pnpm rust           # rust:fmt · rust:lint (clippy pedantic, -D warnings) · rust:test; pnpm verify runs it as conventions
+```
+
+| Where                     | What is there                                                      |
+| ------------------------- | ------------------------------------------------------------------ |
+| `.claude/rules/rust.md`   | the Rust canon: layout, errors, `unsafe`, safety of actions, gates |
+| `src-tauri/capabilities/` | what the window may call: one permission per command               |
+| `docs/deviations.md`      | every Vitals deviation from the kit, with its reason               |
+
 <!-- kit:web-react -->
 
 # Project
