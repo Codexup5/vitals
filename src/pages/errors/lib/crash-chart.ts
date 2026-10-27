@@ -1,4 +1,4 @@
-import { CHART_KINDS, type HealthPeriod } from '@/entities/health';
+import { CHART_KINDS, type HealthPeriod } from '@/entities/event-log';
 
 export type ChartKind = (typeof CHART_KINDS)[number];
 

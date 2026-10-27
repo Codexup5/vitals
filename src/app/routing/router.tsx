@@ -10,7 +10,7 @@ import {
   type RouterHistory,
 } from '@tanstack/react-router';
 
-import { HEALTH_SEARCH_DEFAULTS, healthSearchSchema } from '@/entities/health';
+import { HEALTH_SEARCH_DEFAULTS, healthSearchSchema } from '@/entities/event-log';
 import { NotFoundPage } from '@/pages/not-found';
 import { DEFAULT_MODULE, isModuleId, type ModuleId } from '@/shared/config/modules';
 import { reportError } from '@/shared/lib/report-error';
@@ -48,6 +48,12 @@ const errorsRoute = createRoute({
   component: lazyRouteComponent(() => import('@/pages/errors'), 'ErrorsPage'),
 });
 
+const disksRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'disks',
+  component: lazyRouteComponent(() => import('@/pages/disks'), 'DisksPage'),
+});
+
 const moduleRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '$moduleId',
@@ -55,7 +61,7 @@ const moduleRoute = createRoute({
   component: lazyRouteComponent(() => import('@/pages/module'), 'ModulePage'),
 });
 
-const routeTree = rootRoute.addChildren([indexRoute, errorsRoute, moduleRoute]);
+const routeTree = rootRoute.addChildren([indexRoute, errorsRoute, disksRoute, moduleRoute]);
 
 export const createAppRouter = (queryClient: QueryClient, history?: RouterHistory) =>
   createRouter({

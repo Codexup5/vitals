@@ -9,6 +9,11 @@ export default defineConfig([
     },
   },
   {
+    // architecture.md §1: an entity is the contract with the back end, even with one consumer
+    files: ['./src/entities/**'],
+    rules: { 'fsd/insignificant-slice': 'off' },
+  },
+  {
     files: ['./src/shared/**'],
     rules: { 'fsd/public-api': 'off' },
   },

@@ -1,4 +1,4 @@
-import type { Minidump } from '@/entities/health';
+import type { Minidump } from '@/entities/event-log';
 import { getErrorMessage } from '@/shared/api/error-message';
 import { formatDateTime } from '@/shared/lib/date';
 import { INTL_LOCALES, type Locale } from '@/shared/lib/i18n';

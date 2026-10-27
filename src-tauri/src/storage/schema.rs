@@ -1,7 +1,8 @@
 use rusqlite::Connection;
 
 /// Each entry moves the schema one version up; an applied entry is never edited, a change is a new entry.
-const MIGRATIONS: &[&str] = &["CREATE TABLE events (
+const MIGRATIONS: &[&str] = &[
+    "CREATE TABLE events (
        log TEXT NOT NULL,
        record_id INTEGER NOT NULL,
        time INTEGER NOT NULL,
@@ -32,7 +33,13 @@ const MIGRATIONS: &[&str] = &["CREATE TABLE events (
        day TEXT PRIMARY KEY,
        taken_at INTEGER,
        body TEXT NOT NULL
-     );"];
+     );",
+    "CREATE TABLE scans (
+       id INTEGER PRIMARY KEY,
+       finished_at INTEGER NOT NULL,
+       body TEXT NOT NULL
+     );",
+];
 
 pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
     let version: i64 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;

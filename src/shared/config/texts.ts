@@ -18,6 +18,10 @@ const ru = {
     label: 'Страницы',
     position: (page: number, pageCount: number) => `Страница ${page} из ${pageCount}`,
   },
+  units: {
+    gigabytes: 'ГБ',
+    megabytes: 'МБ',
+  },
   missingValue: '—',
 } as const;
 
@@ -40,6 +44,10 @@ export const COMMON_TEXTS: Localized<typeof ru> = {
     pagination: {
       label: 'Pages',
       position: (page: number, pageCount: number) => `Page ${page} of ${pageCount}`,
+    },
+    units: {
+      gigabytes: 'GB',
+      megabytes: 'MB',
     },
     missingValue: '—',
   },

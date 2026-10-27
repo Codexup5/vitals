@@ -176,6 +176,84 @@
           "role": "ui"
         }
       }
+    },
+    "category-documents": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0.5373, 0.7059, 0.9804],
+        "hex": "#89b4fa"
+      }
+    },
+    "category-dev-tools": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0.7961, 0.651, 0.9686],
+        "hex": "#cba6f7"
+      }
+    },
+    "category-code": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0.651, 0.8902, 0.6314],
+        "hex": "#a6e3a1"
+      }
+    },
+    "category-sdks": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0.5804, 0.8863, 0.8353],
+        "hex": "#94e2d5"
+      }
+    },
+    "category-ai": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0.9608, 0.7608, 0.9059],
+        "hex": "#f5c2e7"
+      }
+    },
+    "category-caches": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0.9804, 0.702, 0.5294],
+        "hex": "#fab387"
+      }
+    },
+    "category-system": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0.9765, 0.8863, 0.6863],
+        "hex": "#f9e2af"
+      }
+    },
+    "category-other": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0.7294, 0.7608, 0.8706],
+        "hex": "#bac2de"
+      }
+    },
+    "on-category": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0.0667, 0.0667, 0.1059],
+        "hex": "#11111b"
+      },
+      "$extensions": {
+        "kit": {
+          "role": "text",
+          "surfaces": [
+            "{color.category-documents}",
+            "{color.category-dev-tools}",
+            "{color.category-code}",
+            "{color.category-sdks}",
+            "{color.category-ai}",
+            "{color.category-caches}",
+            "{color.category-system}",
+            "{color.category-other}"
+          ]
+        }
+      }
     }
   },
   "space": {

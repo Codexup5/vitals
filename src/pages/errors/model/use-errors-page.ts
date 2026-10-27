@@ -12,7 +12,7 @@ import {
   useRevealMinidump,
   type EventKind,
   type HealthRange,
-} from '@/entities/health';
+} from '@/entities/event-log';
 import { COMMON_TEXTS } from '@/shared/config/texts';
 import { usePreferences } from '@/shared/model/use-preferences';
 

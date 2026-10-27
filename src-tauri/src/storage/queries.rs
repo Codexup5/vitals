@@ -1,7 +1,7 @@
 //! What the screens read: days of a range, months, a page of the event feed, the BSOD times.
 
 use chrono::{DateTime, NaiveDate, Utc};
-use rusqlite::{ToSql, params, params_from_iter};
+use rusqlite::{OptionalExtension, ToSql, params, params_from_iter};
 use serde::Serialize;
 
 use super::{DayCounts, Storage, StorageError, day_text, parse_day};
@@ -197,6 +197,30 @@ impl Storage {
             .collect::<Result<Vec<_>, _>>()?)
     }
 
+    /// Keeps the last ten scans: the newest is what the screen shows, the older ones are kept for comparison.
+    pub fn put_scan(&self, finished_at: i64, body: &str) -> Result<(), StorageError> {
+        self.conn.execute(
+            "INSERT INTO scans (finished_at, body) VALUES (?1, ?2)",
+            params![finished_at, body],
+        )?;
+        self.conn.execute(
+            "DELETE FROM scans WHERE id NOT IN (SELECT id FROM scans ORDER BY id DESC LIMIT 10)",
+            [],
+        )?;
+        Ok(())
+    }
+
+    pub fn latest_scan(&self) -> Result<Option<String>, StorageError> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT body FROM scans ORDER BY id DESC LIMIT 1",
+                [],
+                |row| row.get(0),
+            )
+            .optional()?)
+    }
+
     pub fn first_day(&self) -> Result<Option<NaiveDate>, StorageError> {
         let text: Option<String> = self
             .conn
@@ -308,5 +332,15 @@ mod tests {
         };
         assert_eq!(storage.events_page(&outside, 0, 10).unwrap().total, 0);
         assert_eq!(storage.bsod_times().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn keeps_the_last_ten_scans_and_returns_the_newest() {
+        let storage = Storage::in_memory().unwrap();
+        assert_eq!(storage.latest_scan().unwrap(), None);
+        for index in 0..12 {
+            storage.put_scan(index, &format!("scan {index}")).unwrap();
+        }
+        assert_eq!(storage.latest_scan().unwrap().as_deref(), Some("scan 11"));
     }
 }

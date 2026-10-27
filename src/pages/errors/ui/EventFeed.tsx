@@ -1,4 +1,4 @@
-import type { EventKind } from '@/entities/health';
+import type { EventKind } from '@/entities/event-log';
 import { Button } from '@/shared/ui/button/Button';
 
 import type { FeedView } from '../lib/event-feed-view';

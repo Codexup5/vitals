@@ -1,4 +1,4 @@
-import { CHART_KINDS, HEALTH_TEXTS, type EventKind, type HealthEventPage } from '@/entities/health';
+import { CHART_KINDS, HEALTH_TEXTS, type EventKind, type HealthEventPage } from '@/entities/event-log';
 import { getErrorMessage } from '@/shared/api/error-message';
 import { COMMON_TEXTS } from '@/shared/config/texts';
 import { formatDateTime } from '@/shared/lib/date';
