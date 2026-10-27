@@ -1,0 +1,122 @@
+.feed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+
+  button {
+    border: 1px solid var(--color-border-control);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg);
+    color: var(--color-text);
+  }
+
+  button[aria-pressed='true'] {
+    border-color: var(--color-accent);
+    background: var(--color-accent);
+    color: var(--color-on-accent);
+    font-weight: var(--font-weight-semibold);
+  }
+}
+
+.skeleton {
+  height: var(--chart-height);
+}
+
+.message {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
+  margin: 0;
+  color: var(--color-text-muted);
+
+  p {
+    margin: 0;
+  }
+}
+
+.found {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.scroll {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-caption);
+
+  th,
+  td {
+    padding: var(--space-2);
+    border-bottom: 1px solid var(--color-border);
+    text-align: left;
+    vertical-align: top;
+  }
+
+  th {
+    color: var(--color-text-muted);
+    font-weight: var(--font-weight-semibold);
+  }
+}
+
+.mono {
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.kind {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  white-space: nowrap;
+
+  &::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border: 1px solid var(--color-border-control);
+    border-radius: 2px;
+  }
+
+  &[data-kind='crash']::before {
+    border-color: var(--color-chart-crash);
+    background: var(--color-chart-crash);
+  }
+
+  &[data-kind='bsod']::before {
+    border-color: var(--color-chart-bsod);
+    background: var(--color-chart-bsod);
+  }
+
+  &[data-kind='whea']::before {
+    border-color: var(--color-chart-whea);
+    background: var(--color-chart-whea);
+  }
+
+  &[data-kind='gpuReset']::before {
+    border-color: var(--color-chart-gpu-reset);
+    background: var(--color-chart-gpu-reset);
+  }
+
+  &[data-kind='appCrash']::before {
+    border-color: var(--color-chart-app-crash);
+    background: var(--color-chart-app-crash);
+  }
+}
+
+.pages {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}

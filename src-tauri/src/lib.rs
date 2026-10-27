@@ -1,6 +1,7 @@
 mod app_paths;
 mod collector;
 mod commands;
+mod dumps;
 mod events;
 mod import;
 mod logging;
@@ -23,10 +24,19 @@ pub const MAIN_WINDOW: &str = "main";
 #[must_use]
 pub fn run() -> ExitCode {
     let result = tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![commands::log_ui_error])
+        .invoke_handler(tauri::generate_handler![
+            commands::log_ui_error,
+            commands::health_overview,
+            commands::health_events,
+            commands::minidumps,
+            commands::reveal_minidump
+        ])
         .setup(|app| {
             let data_dir = app_paths::ensure_data_dir()?;
             logging::init(&data_dir);
+            app.manage(commands::AppState {
+                db_path: data_dir.join(storage::DB_FILE),
+            });
             let is_russian = system::windows::ui_language_is_russian();
             tray::create(app.handle(), is_russian)?;
             start_collector(app.handle().clone(), data_dir, is_russian);

@@ -6,9 +6,11 @@ import {
   lazyRouteComponent,
   notFound,
   redirect,
+  stripSearchParams,
   type RouterHistory,
 } from '@tanstack/react-router';
 
+import { HEALTH_SEARCH_DEFAULTS, healthSearchSchema } from '@/entities/health';
 import { NotFoundPage } from '@/pages/not-found';
 import { DEFAULT_MODULE, isModuleId, type ModuleId } from '@/shared/config/modules';
 import { reportError } from '@/shared/lib/report-error';
@@ -38,6 +40,14 @@ const indexRoute = createRoute({
   beforeLoad: () => redirect({ to: '/$moduleId', params: { moduleId: DEFAULT_MODULE }, throw: true }),
 });
 
+const errorsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'errors',
+  validateSearch: healthSearchSchema,
+  search: { middlewares: [stripSearchParams(HEALTH_SEARCH_DEFAULTS)] },
+  component: lazyRouteComponent(() => import('@/pages/errors'), 'ErrorsPage'),
+});
+
 const moduleRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '$moduleId',
@@ -45,7 +55,7 @@ const moduleRoute = createRoute({
   component: lazyRouteComponent(() => import('@/pages/module'), 'ModulePage'),
 });
 
-const routeTree = rootRoute.addChildren([indexRoute, moduleRoute]);
+const routeTree = rootRoute.addChildren([indexRoute, errorsRoute, moduleRoute]);
 
 export const createAppRouter = (queryClient: QueryClient, history?: RouterHistory) =>
   createRouter({
