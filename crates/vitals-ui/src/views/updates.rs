@@ -76,6 +76,7 @@ pub fn result_line(result: &UpgradeResult, locale: Locale) -> ResultLine {
         },
         UpgradeOutcome::Open => ((texts.was_open)(name), Tone::Warn),
         UpgradeOutcome::NeedsRestart => ((texts.needs_restart)(name), Tone::Warn),
+        UpgradeOutcome::HashMismatch => ((texts.hash_mismatch)(name), Tone::Warn),
         UpgradeOutcome::Declined => ((texts.declined)(name), Tone::Warn),
         UpgradeOutcome::Failed => ((texts.failed)(name, &code_text(result.code)), Tone::Danger),
     };

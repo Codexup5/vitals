@@ -8,6 +8,7 @@ mod events;
 mod import;
 mod logging;
 mod process;
+mod runners;
 mod scan;
 mod storage;
 mod system;
@@ -50,7 +51,11 @@ pub fn run() -> ExitCode {
             commands::updates::updates_check,
             commands::updates::updates_run,
             commands::updates::updates_tools,
-            commands::updates::open_update_tool
+            commands::updates::open_update_tool,
+            commands::runners::runners_present,
+            commands::runners::runners_overview,
+            commands::runners::mode_start,
+            commands::runners::mode_status
         ])
         .setup(|app| {
             let data_dir = app_paths::ensure_data_dir()?;
@@ -61,6 +66,7 @@ pub fn run() -> ExitCode {
                 scan: std::sync::Arc::default(),
                 plan: std::sync::Mutex::default(),
                 updates: std::sync::Arc::default(),
+                mode: std::sync::Arc::default(),
             });
             let is_russian = system::windows::ui_language_is_russian();
             tray::create(app.handle(), is_russian)?;

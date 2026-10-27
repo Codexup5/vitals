@@ -24,6 +24,10 @@ pub mod command {
     pub const UPDATES_RUN: &str = "updates_run";
     pub const UPDATES_TOOLS: &str = "updates_tools";
     pub const OPEN_UPDATE_TOOL: &str = "open_update_tool";
+    pub const RUNNERS_PRESENT: &str = "runners_present";
+    pub const RUNNERS_OVERVIEW: &str = "runners_overview";
+    pub const MODE_START: &str = "mode_start";
+    pub const MODE_STATUS: &str = "mode_status";
     pub const LOG_UI_ERROR: &str = "log_ui_error";
 }
 
@@ -487,6 +491,8 @@ pub enum UpgradeOutcome {
     Open,
     /// winget reports the update finishes after a restart, which the panel never does itself
     NeedsRestart,
+    /// The downloaded installer is not the one winget's manifest names: the maker replaced it, winget refuses
+    HashMismatch,
     /// The installer asked for admin rights or a choice and the user said no
     Declined,
     Failed,
@@ -567,6 +573,106 @@ pub struct UpdateTools {
     /// The GPU vendor's app was found
     pub has_gpu_tool: bool,
     pub firmware: Firmware,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum RunnerStatus {
+    Online,
+    Offline,
+}
+
+/// A self-hosted runner: what GitHub says of it, and what this PC says when its folder is here.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Runner {
+    pub name: String,
+    /// `owner/name`
+    pub repo: String,
+    /// GitHub's view; none when `gh` could not ask
+    pub status: Option<RunnerStatus>,
+    pub is_busy: bool,
+    pub labels: Vec<String>,
+    /// The folder of a runner installed on this PC; none for a runner in a container or on another machine
+    pub folder: Option<PathBuf>,
+    /// Its `Runner.Listener` runs now; none when the runner is not in a folder of this PC
+    pub is_listening: Option<bool>,
+}
+
+/// How the panel could ask GitHub about the runners.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum GithubAccess {
+    Ok,
+    /// `gh` is not installed or not signed in
+    NoGh,
+    /// `gh` answered with an error for at least one repository
+    Partial,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DockerState {
+    Missing,
+    Stopped,
+    Running,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Container {
+    pub name: String,
+    pub image: String,
+    /// `running`, `exited`, `restarting`…
+    pub state: String,
+    /// Docker's own words: `Up 11 hours (healthy)`
+    pub status: String,
+    /// The compose project the container belongs to
+    pub project: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RunnersOverview {
+    pub runners: Vec<Runner>,
+    pub github: GithubAccess,
+    pub docker: DockerState,
+    pub containers: Vec<Container>,
+}
+
+/// The two modes of the PC: games free memory and CPU from the dev stack, coding brings it back.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Mode {
+    /// Docker Desktop and WSL stop: their containers and the runners in them go offline
+    Gaming,
+    /// Docker Desktop starts, and the containers that restart by themselves come up
+    Coding,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ModeStartArgs {
+    pub mode: Mode,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModeResult {
+    pub mode: Mode,
+    /// Every step ended well
+    pub is_done: bool,
+    /// The containers running after the switch
+    pub running: u32,
+    /// Unix seconds
+    pub finished_at: i64,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModeStatus {
+    /// The mode being switched to now
+    pub switching: Option<Mode>,
+    pub last: Option<ModeResult>,
 }
 
 #[cfg(test)]

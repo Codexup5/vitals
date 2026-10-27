@@ -32,7 +32,7 @@ fn programs() -> Vec<InstalledProgram> {
 
 #[cfg(windows)]
 fn running() -> Vec<std::path::PathBuf> {
-    super::windows::running_exes()
+    crate::system::windows::running_exes()
 }
 
 #[cfg(not(windows))]

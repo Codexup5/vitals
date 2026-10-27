@@ -3,6 +3,9 @@
 use leptos::prelude::*;
 use leptos_router::components::{A, Outlet};
 
+use vitals_ipc::command;
+
+use crate::ipc;
 use crate::modules::Module;
 use crate::preferences::{PreferencesStore, Theme};
 
@@ -19,6 +22,12 @@ pub fn LayoutOutlet() -> impl IntoView {
 pub fn Layout(children: Children) -> impl IntoView {
     let store = PreferencesStore::get();
     let texts = move || &store.locale().texts().app;
+    // The brief: the runners module is hidden on a PC with neither Docker nor a runner; shown until the core answers
+    let has_runners =
+        LocalResource::new(|| async { ipc::call::<bool, _>(command::RUNNERS_PRESENT, &()).await });
+    let is_shown = move |module: Module| {
+        module != Module::Runners || has_runners.get().and_then(Result::ok) != Some(false)
+    };
 
     view! {
         <div class="layout">
@@ -33,7 +42,7 @@ pub fn Layout(children: Children) -> impl IntoView {
                             .into_iter()
                             .map(|module| {
                                 view! {
-                                    <li>
+                                    <li hidden=move || !is_shown(module)>
                                         <A href=format!("/{}", module.id()) attr:class="nav-link">
                                             {move || module.title(store.locale())}
                                         </A>

@@ -1,0 +1,38 @@
+// The runners screen: the two modes side by side, the line of the last switch
+
+.modes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.mode-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-4);
+}
+
+.mode-choice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
+}
+
+// The words say how the switch went; the line on their side only repeats it
+.mode-line {
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--color-border);
+
+  &[data-tone='ok'] {
+    border-left-color: var(--color-ok);
+  }
+
+  &[data-tone='warn'] {
+    border-left-color: var(--color-warn);
+  }
+
+  &[data-tone='accent'] {
+    border-left-color: var(--color-accent);
+  }
+}
