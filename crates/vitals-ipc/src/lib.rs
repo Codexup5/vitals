@@ -19,6 +19,11 @@ pub mod command {
     pub const REVEAL_PATH: &str = "reveal_path";
     pub const CLEANUP_PREVIEW: &str = "cleanup_preview";
     pub const CLEANUP_RUN: &str = "cleanup_run";
+    pub const UPDATES_STATUS: &str = "updates_status";
+    pub const UPDATES_CHECK: &str = "updates_check";
+    pub const UPDATES_RUN: &str = "updates_run";
+    pub const UPDATES_TOOLS: &str = "updates_tools";
+    pub const OPEN_UPDATE_TOOL: &str = "open_update_tool";
     pub const LOG_UI_ERROR: &str = "log_ui_error";
 }
 
@@ -456,6 +461,112 @@ pub struct CleanupReport {
     pub finished_at: i64,
     pub items: Vec<CleanupItemReport>,
     pub total: CleanupTally,
+}
+
+/// A program winget can update, as `winget upgrade` lists it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Package {
+    pub id: String,
+    pub name: String,
+    pub installed: String,
+    pub available: String,
+    pub source: String,
+    /// One of its programs runs now: the installer would fail or close it
+    pub is_open: bool,
+    /// The id came out whole: winget can be told exactly this package
+    pub can_upgrade: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum UpgradeOutcome {
+    /// Installed; the version after is read back from winget
+    Done,
+    /// The program was open: nothing ran, close it and update again
+    Open,
+    /// winget reports the update finishes after a restart, which the panel never does itself
+    NeedsRestart,
+    /// The installer asked for admin rights or a choice and the user said no
+    Declined,
+    Failed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpgradeResult {
+    pub id: String,
+    pub name: String,
+    pub before: String,
+    /// The installed version read back after the run; none when winget no longer lists it
+    pub after: Option<String>,
+    pub outcome: UpgradeOutcome,
+    /// winget's exit code when it failed
+    pub code: Option<i32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum UpdatesPhase {
+    Idle,
+    Checking,
+    Upgrading,
+}
+
+/// The background job of the updates screen: a check or a run of upgrades, and what the last one found.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdatesStatus {
+    pub phase: UpdatesPhase,
+    /// Unix seconds of the last finished check; none before the first
+    pub checked_at: Option<i64>,
+    /// The last check could not run winget or read its answer
+    pub check_failed: bool,
+    /// winget is not installed
+    pub no_winget: bool,
+    pub packages: Vec<Package>,
+    /// The id being upgraded now
+    pub current: Option<String>,
+    /// The results of the last run, in the order it went
+    pub results: Vec<UpgradeResult>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UpdatesRunArgs {
+    pub ids: Vec<String>,
+}
+
+/// A native tool the panel opens rather than doing the update itself.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum UpdateTool {
+    WindowsUpdate,
+    /// The GPU vendor's app (NVIDIA App, AMD Software)
+    GpuDriver,
+    Store,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OpenUpdateToolArgs {
+    pub tool: UpdateTool,
+}
+
+/// The firmware of the board: shown for a manual update from the board maker's site.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Firmware {
+    pub board: Option<String>,
+    pub version: Option<String>,
+    /// `YYYY-MM-DD`
+    pub released: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateTools {
+    /// The GPU vendor's app was found
+    pub has_gpu_tool: bool,
+    pub firmware: Firmware,
 }
 
 #[cfg(test)]

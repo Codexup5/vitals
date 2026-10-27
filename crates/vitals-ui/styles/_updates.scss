@@ -1,0 +1,46 @@
+// The updates screen: the bar of the checked packages, the tags of a row, the result of a run
+
+.updates-bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: flex-start;
+
+  .toggles {
+    align-items: center;
+  }
+}
+
+// A list that opens its card needs no line above its first row: the card's edge is one
+.card > .rows:first-child > .row:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.row-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+
+  &:empty {
+    display: none;
+  }
+}
+
+// The word of a result says what happened; the line on its side only repeats it
+.results .row {
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--color-border);
+
+  &[data-tone='ok'] {
+    border-left-color: var(--color-ok);
+  }
+
+  &[data-tone='warn'] {
+    border-left-color: var(--color-warn);
+  }
+
+  &[data-tone='danger'] {
+    border-left-color: var(--color-danger);
+  }
+}

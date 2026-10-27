@@ -4,6 +4,7 @@ mod cleanup;
 mod disks;
 mod errors;
 mod layout;
+mod updates;
 mod widgets;
 
 use leptos::prelude::*;
@@ -25,6 +26,7 @@ pub fn App() -> impl IntoView {
                     <Route path=path!("") view=|| view! { <Redirect path="/errors" /> } />
                     <Route path=path!("errors") view=errors::ErrorsPage />
                     <Route path=path!("disks") view=disks::DisksPage />
+                    <Route path=path!("updates") view=updates::UpdatesPage />
                     <Route path=path!(":module") view=ModuleRoute />
                 </ParentRoute>
             </Routes>
