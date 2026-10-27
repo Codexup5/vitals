@@ -5,6 +5,8 @@
 )]
 
 pub mod alerts;
+#[cfg(windows)]
+pub mod claude;
 pub mod disks;
 pub mod network;
 pub mod runners;

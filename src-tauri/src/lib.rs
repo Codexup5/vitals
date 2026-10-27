@@ -10,6 +10,7 @@ mod events;
 mod import;
 mod instance;
 mod logging;
+mod mcp;
 mod network;
 mod process;
 mod runners;
@@ -33,12 +34,24 @@ use crate::storage::Storage;
 
 pub const MAIN_WINDOW: &str = "main";
 
+/// The starts that need no panel: an admin action under UAC, Claude's MCP server, the status line. Each runs and ends.
+fn run_without_panel(args: &[String]) -> Option<ExitCode> {
+    if let Some(code) = elevated::handle(args) {
+        return Some(code);
+    }
+    #[cfg(windows)]
+    match args.get(1).map(String::as_str) {
+        Some(mcp::FLAG) => return Some(panel_db().map_or(ExitCode::FAILURE, mcp::tools::run)),
+        Some(STATUS_FLAG) => return Some(print_status()),
+        _ => {}
+    }
+    None
+}
+
 /// Starts the panel: the log, the tray icon, the collector thread, the main window hidden to the tray on close.
 #[must_use]
 pub fn run() -> ExitCode {
-    // The same exe under UAC for one admin action: it runs the action and exits, no window, no tray
-    let args: Vec<String> = std::env::args().collect();
-    if let Some(code) = elevated::handle(&args) {
+    if let Some(code) = run_without_panel(&std::env::args().collect::<Vec<_>>()) {
         return code;
     }
     // A second start shows the panel that runs and ends here
@@ -83,7 +96,9 @@ pub fn run() -> ExitCode {
             commands::alerts::alerts_import_legacy,
             commands::alerts::alerts_forget_bot,
             commands::alerts::alerts_test,
-            commands::alerts::alerts_set_sending
+            commands::alerts::alerts_set_sending,
+            commands::claude::claude_status,
+            commands::claude::claude_connect
         ])
         .setup(move |app| {
             #[cfg(windows)]
@@ -133,6 +148,51 @@ pub fn run() -> ExitCode {
             tracing::error!("the panel stopped: {error}");
             ExitCode::FAILURE
         }
+    }
+}
+
+pub const STATUS_FLAG: &str = "--status";
+/// The runners the last check saw count only this long; Docker stopped, they are not said
+const RUNNERS_FRESH_SECONDS: i64 = 15 * 60;
+
+/// The database of the panel, without creating anything.
+fn panel_db() -> Option<PathBuf> {
+    app_paths::data_dir_from(std::env::var_os("APPDATA"))
+        .ok()
+        .map(|dir| dir.join(storage::DB_FILE))
+        .filter(|path| path.is_file())
+}
+
+/// The runners of the last check, when it was recent.
+fn fresh_runners(storage: &Storage, now: i64) -> Option<(u32, u32)> {
+    let text = storage.setting(alerts::RUNNERS_KEY).ok()??;
+    let seen: serde_json::Value = serde_json::from_str(&text).ok()?;
+    let at = seen.get("at")?.as_i64()?;
+    let count = |key: &str| {
+        seen.get(key)?
+            .as_u64()
+            .and_then(|value| u32::try_from(value).ok())
+    };
+    (now - at <= RUNNERS_FRESH_SECONDS).then_some((count("online")?, count("total")?))
+}
+
+/// `vitals.exe --status`: one line for the status line of Claude Code, from the database in milliseconds.
+#[cfg(windows)]
+fn print_status() -> ExitCode {
+    use std::io::Write as _;
+
+    let Some(storage) = panel_db().and_then(|path| Storage::open(&path).ok()) else {
+        return ExitCode::FAILURE;
+    };
+    let Ok(summary) = collector::summary_from(&storage, Local::now().date_naive()) else {
+        return ExitCode::FAILURE;
+    };
+    let runners = fresh_runners(&storage, Utc::now().timestamp());
+    let line = tray::status_line(&summary, runners, system::windows::ui_language_is_russian());
+    if writeln!(std::io::stdout(), "{line}").is_ok() {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
     }
 }
 

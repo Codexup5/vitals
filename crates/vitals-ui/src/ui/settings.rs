@@ -3,14 +3,19 @@
 
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use vitals_ipc::{AlertsSaveBotArgs, AlertsSetSendingArgs, AlertsStatus, TestOutcome, command};
+use vitals_ipc::{
+    AlertsSaveBotArgs, AlertsSetSendingArgs, AlertsStatus, ClaudeStatus, ConnectOutcome,
+    TestOutcome, command,
+};
 
 use super::widgets::{Eyebrow, Failure, Tag};
 use crate::i18n::Locale;
 use crate::ipc::{self, IpcError};
 use crate::preferences::PreferencesStore;
 use crate::views::disks::Tone;
-use crate::views::settings::{AlertsReady, AlertsView, alerts_view, test_line};
+use crate::views::settings::{
+    AlertsReady, AlertsView, alerts_view, claude_view, connect_line, test_line,
+};
 
 type Answer<T> = LocalResource<Result<T, IpcError>>;
 
@@ -58,7 +63,77 @@ pub fn SettingsPage() -> impl IntoView {
                     }
                 }}
             </section>
+            <Claude locale=Signal::derive(locale) />
         </main>
+    }
+}
+
+#[component]
+fn Claude(locale: Signal<Locale>) -> impl IntoView {
+    let texts = move || &locale.get().texts().settings;
+    let status = LocalResource::new(|| async {
+        ipc::call::<ClaudeStatus, _>(command::CLAUDE_STATUS, &()).await
+    });
+    let said = RwSignal::new(None::<(&'static str, Tone)>);
+    let is_busy = RwSignal::new(false);
+    let connect = move || {
+        is_busy.set(true);
+        said.set(None);
+        spawn_local(async move {
+            let answer: Result<ConnectOutcome, IpcError> =
+                ipc::call(command::CLAUDE_CONNECT, &()).await;
+            let locale = locale.get_untracked();
+            let line = match answer {
+                Ok(outcome) => connect_line(outcome, locale),
+                Err(_) => (locale.texts().settings.connect_failed, Tone::Danger),
+            };
+            if said.try_set(Some(line)).is_none() {
+                is_busy.set(false);
+                status.refetch();
+            }
+        });
+    };
+    view! {
+        <section class="section" aria-labelledby="claude-title">
+            <h2 id="claude-title">{move || texts().claude_title}</h2>
+            <p class="muted">{move || texts().claude_hint}</p>
+            {move || match status.get() {
+                None => view! { <div class="skeleton" aria-busy="true"></div> }.into_any(),
+                Some(Err(error)) => {
+                    view! { <Failure message=error.text(locale.get()) retry=locale.get().texts().common.retry on_retry=move || status.refetch() /> }
+                        .into_any()
+                }
+                Some(Ok(answer)) => {
+                    let ready = claude_view(&answer, locale.get());
+                    view! {
+                        <div class="card settings-card">
+                            <div class="row-main">
+                                <Tag tone=ready.state.1>{ready.state.0}</Tag>
+                                {ready
+                                    .button
+                                    .map(|label| {
+                                        view! {
+                                            <button
+                                                type="button"
+                                                disabled=move || is_busy.get()
+                                                aria-busy=move || is_busy.get().to_string()
+                                                on:click=move |_| connect()
+                                            >
+                                                {label}
+                                            </button>
+                                        }
+                                    })}
+                            </div>
+                        </div>
+                        <h3>{texts().status_title}</h3>
+                        <p class="muted">{texts().status_hint}</p>
+                        <p class="card mono wrap">{ready.status_command}</p>
+                    }
+                        .into_any()
+                }
+            }}
+            {move || said.get().map(|(text, tone)| view! { <p role="status" class="mode-line" data-tone=tone.code()>{text}</p> })}
+        </section>
     }
 }
 
