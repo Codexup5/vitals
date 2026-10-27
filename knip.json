@@ -1,0 +1,29 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "steiger.config.mjs",
+    "mocks/*.ts",
+    "api/**/*.ts",
+    "server/*.config.ts",
+    "domain/*.config.mjs",
+    "scripts/*.mjs",
+    "tooling/eslint.mjs",
+    "tooling/placement.mjs",
+    "tooling/debt/debt.mjs",
+    "tooling/debt/sync.mjs",
+    "tooling/design/tokens.mjs",
+    "tooling/security/check-csp.mjs",
+    "e2e/**/*.spec.ts"
+  ],
+  "project": [
+    "src/**/*.{ts,tsx}",
+    "mocks/**/*.ts",
+    "api/**/*.ts",
+    "server/**/*.ts",
+    "domain/**/*.ts",
+    "tooling/**/*.{js,mjs}",
+    "scripts/**/*.mjs"
+  ],
+  "ignore": ["adapters/**"],
+  "ignoreDependencies": ["@stryker-mutator/command-runner"]
+}

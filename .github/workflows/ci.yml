@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v6
+        with:
+          # a self-hosted runner gets its own pnpm and store: the default ~/setup-pnpm is shared and parallel jobs break it
+          dest: ${{ runner.tool_cache }}/setup-pnpm
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: ${{ !vars.CI_RUNNER && 'pnpm' || '' }}
+          package-manager-cache: ${{ !vars.CI_RUNNER }}
+      - run: pnpm install --frozen-lockfile
+      # verify ends with conventions: cargo fmt, clippy and test of src-tauri
+      - run: pnpm verify
+        env:
+          # the PC runner keeps the Rust build between jobs: checkout cleans ignored files, target/ included
+          CARGO_TARGET_DIR: ${{ runner.tool_cache }}/vitals-target
+
+  commitlint:
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v6
+        with:
+          dest: ${{ runner.tool_cache }}/setup-pnpm
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: ${{ !vars.CI_RUNNER && 'pnpm' || '' }}
+          package-manager-cache: ${{ !vars.CI_RUNNER }}
+      - run: pnpm install --frozen-lockfile
+      # node prints the title the same way in bash on Linux and in PowerShell on a self-hosted Windows runner
+      - run: node -e "process.stdout.write(process.env.PR_TITLE)" | pnpm exec commitlint
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}

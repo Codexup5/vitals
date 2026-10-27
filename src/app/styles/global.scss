@@ -1,0 +1,72 @@
+@use '../../shared/styles/tokens';
+
+:root {
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-family);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+}
+
+main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+h1 {
+  margin: 0;
+  font-size: var(--font-size-title);
+}
+
+a {
+  color: var(--color-accent);
+}
+
+button {
+  min-height: var(--touch-target);
+  padding: 0 var(--space-4);
+  font: inherit;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: not-allowed;
+  }
+}
+
+[data-skeleton] {
+  display: block;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition: none !important;
+  }
+}

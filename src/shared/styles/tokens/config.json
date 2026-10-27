@@ -1,0 +1,20 @@
+{
+  "prefix": "",
+  "names": {},
+  "layers": [
+    {
+      "file": "base.tokens.json",
+      "theme": "mocha"
+    },
+    {
+      "file": "latte.tokens.json",
+      "theme": "latte",
+      "selector": [":root[data-theme='light']"]
+    },
+    {
+      "file": "coarse.tokens.json",
+      "pointer": "coarse",
+      "selector": ["@media (any-pointer: coarse)", ":root"]
+    }
+  ]
+}
