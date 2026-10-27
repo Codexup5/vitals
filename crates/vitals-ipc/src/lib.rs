@@ -38,6 +38,12 @@ pub mod command {
     pub const STARTUP_SET: &str = "startup_set";
     pub const SERVICES_OVERVIEW: &str = "services_overview";
     pub const SERVICE_SET: &str = "service_set";
+    pub const ALERTS_STATUS: &str = "alerts_status";
+    pub const ALERTS_SAVE_BOT: &str = "alerts_save_bot";
+    pub const ALERTS_IMPORT_LEGACY: &str = "alerts_import_legacy";
+    pub const ALERTS_FORGET_BOT: &str = "alerts_forget_bot";
+    pub const ALERTS_TEST: &str = "alerts_test";
+    pub const ALERTS_SET_SENDING: &str = "alerts_set_sending";
     pub const LOG_UI_ERROR: &str = "log_ui_error";
 }
 
@@ -976,6 +982,71 @@ pub struct ServicesOverview {
 pub struct ServiceSetArgs {
     pub name: String,
     pub restore: bool,
+}
+
+/// One check of the alerts: what it found, and whether it went to Telegram.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AlertRecord {
+    /// Unix seconds
+    pub time: i64,
+    /// The lines of the message, as Telegram would show them
+    pub lines: Vec<String>,
+    pub was_sent: bool,
+    /// Why it did not go: sending is off, no bot, Telegram refused
+    pub reason: Option<AlertSkip>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum AlertSkip {
+    /// Sending is off: the panel only writes what it would send
+    SendingOff,
+    NoBot,
+    Failed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AlertsStatus {
+    /// A bot token and a chat are saved
+    pub has_bot: bool,
+    /// The last digits of the chat, to tell which one it is
+    pub chat_hint: Option<String>,
+    pub is_sending: bool,
+    /// `~/.olegpc/telegram.env` of the old alerts is there to take the bot from
+    pub has_legacy_bot: bool,
+    pub disk_min_gb: u32,
+    pub runner_grace_minutes: u32,
+    /// Unix seconds of the last check
+    pub last_check: Option<i64>,
+    /// The checks that found something, newest first
+    pub recent: Vec<AlertRecord>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AlertsSaveBotArgs {
+    pub token: String,
+    pub chat_id: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AlertsSetSendingArgs {
+    pub is_sending: bool,
+}
+
+/// How the test message went.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TestOutcome {
+    Sent,
+    NoBot,
+    /// Telegram answered no: a wrong token or chat
+    Refused,
+    /// Telegram did not answer: no network, or curl is missing
+    Unreachable,
 }
 
 #[cfg(test)]

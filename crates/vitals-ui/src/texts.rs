@@ -23,6 +23,7 @@ pub struct Texts {
     pub runners: RunnersPage,
     pub network: NetworkPage,
     pub startup: StartupPage,
+    pub settings: SettingsPage,
     /// Short month names, January first
     pub months: [&'static str; 12],
 }
@@ -52,6 +53,7 @@ pub struct App {
     pub switch_locale_label: &'static str,
     pub theme_dark: &'static str,
     pub theme_light: &'static str,
+    pub settings: &'static str,
 }
 
 #[derive(Debug)]
@@ -440,6 +442,45 @@ pub struct StartupPage {
 }
 
 #[derive(Debug)]
+pub struct SettingsPage {
+    pub eyebrow: &'static str,
+    pub title: &'static str,
+    pub alerts_title: &'static str,
+    pub alerts_hint: fn(u32, u32) -> String,
+    pub bot_saved: fn(&str) -> String,
+    pub no_bot: &'static str,
+    pub token: &'static str,
+    pub chat: &'static str,
+    pub save: &'static str,
+    pub saved: &'static str,
+    pub invalid: &'static str,
+    pub import_legacy: &'static str,
+    pub imported: &'static str,
+    pub import_failed: &'static str,
+    pub forget: &'static str,
+    pub forgotten: &'static str,
+    pub test: &'static str,
+    pub test_sent: &'static str,
+    pub test_no_bot: &'static str,
+    pub test_refused: &'static str,
+    pub test_unreachable: &'static str,
+    pub sending_on: &'static str,
+    pub sending_off: &'static str,
+    pub turn_on_sending: &'static str,
+    pub turn_off_sending: &'static str,
+    pub week_hint: &'static str,
+    pub recent_title: &'static str,
+    pub recent_empty: &'static str,
+    pub last_check: fn(&str) -> String,
+    pub never_checked: &'static str,
+    pub sent: &'static str,
+    pub skipped_off: &'static str,
+    pub skipped_no_bot: &'static str,
+    pub skipped_failed: &'static str,
+    pub failed: &'static str,
+}
+
+#[derive(Debug)]
 pub struct Disk {
     pub categories: [&'static str; 8],
     pub candidates: [(&'static str, &'static str); 12],
@@ -483,6 +524,7 @@ pub static RU: Texts = Texts {
         switch_locale_label: "Switch the interface to English",
         theme_dark: "Тёмная тема",
         theme_light: "Светлая тема",
+        settings: "Настройки",
     },
     modules: Modules {
         errors: "Ошибки и падения",
@@ -930,6 +972,51 @@ pub static RU: Texts = Texts {
         microsoft_only: "Служба Microsoft или Windows — только просмотр",
         nothing_to_change: "Сама с Windows не стартует",
     },
+    settings: SettingsPage {
+        eyebrow: "Настройки · хранятся только на этом ПК",
+        title: "Настройки",
+        alerts_title: "Оповещения в Telegram",
+        alerts_hint: |disk, minutes| {
+            format!(
+                "Аварийные перезагрузки, синие экраны с кодом, ошибки WHEA и сбросы видеодрайвера — всё с прошлой проверки; на C: меньше {disk} ГБ — раз в день; раннеры offline дольше {minutes} мин, пока работает Docker Desktop. Проверка — каждые 5 минут, вместе со сбором данных."
+            )
+        },
+        bot_saved: |chat| {
+            format!(
+                "Бот сохранён, чат {chat}. Токен зашифрован вашей учётной записью Windows и на другом ПК не откроется."
+            )
+        },
+        no_bot: "Бот не задан. Создайте своего у @BotFather, напишите ему что-нибудь и вставьте сюда токен и номер чата.",
+        token: "Токен бота",
+        chat: "Номер чата",
+        save: "Сохранить бота",
+        saved: "Бот сохранён.",
+        invalid: "Токен выглядит как 123456:ABC…, номер чата — цифры (у группы с минусом) или @канал. Проверьте оба.",
+        import_legacy: "Взять бота OLEGPC",
+        imported: "Бот взят из ~/.olegpc/telegram.env.",
+        import_failed: "В telegram.env нет токена и чата нужного вида.",
+        forget: "Забыть бота",
+        forgotten: "Бот забыт, отправка выключена.",
+        test: "Отправить тестовое",
+        test_sent: "Тестовое сообщение ушло — проверьте Telegram.",
+        test_no_bot: "Сначала сохраните бота.",
+        test_refused: "Telegram отказал: неверный токен или номер чата.",
+        test_unreachable: "Telegram не ответил: нет сети или в Windows нет curl.",
+        sending_on: "Отправка включена",
+        sending_off: "Отправка выключена: панель только записывает, что отправила бы",
+        turn_on_sending: "Включить отправку",
+        turn_off_sending: "Выключить отправку",
+        week_hint: "Пока работает старая задача OLEGPC\\Alerts, держите отправку выключенной: неделю сверяем записи ниже с её сообщениями, потом старая задача выключается, а эта включается.",
+        recent_title: "Что нашли последние проверки",
+        recent_empty: "Проверки пока ничего не нашли.",
+        last_check: |time| format!("Последняя проверка: {time}"),
+        never_checked: "Проверок ещё не было: первая пройдёт вместе со сбором данных.",
+        sent: "Отправлено",
+        skipped_off: "Не отправлено: отправка выключена",
+        skipped_no_bot: "Не отправлено: нет бота",
+        skipped_failed: "Не отправлено: Telegram не принял",
+        failed: "Не удалось сохранить. Подробности — в журнале панели.",
+    },
     months: [
         "янв.",
         "февр.",
@@ -969,6 +1056,7 @@ pub static EN: Texts = Texts {
         switch_locale_label: "Переключить интерфейс на русский",
         theme_dark: "Dark theme",
         theme_light: "Light theme",
+        settings: "Settings",
     },
     modules: Modules {
         errors: "Errors and crashes",
@@ -1413,6 +1501,51 @@ pub static EN: Texts = Texts {
         changed_from: |start| format!("Vitals changed the start, it was: {start}"),
         microsoft_only: "A service of Microsoft or Windows: view only",
         nothing_to_change: "Does not start with Windows by itself",
+    },
+    settings: SettingsPage {
+        eyebrow: "Settings · kept on this PC only",
+        title: "Settings",
+        alerts_title: "Telegram alerts",
+        alerts_hint: |disk, minutes| {
+            format!(
+                "Unexpected restarts, blue screens with their code, WHEA errors and GPU driver resets, all since the last check; C: under {disk} GB, once a day; runners offline for over {minutes} min while Docker Desktop runs. The check runs every 5 minutes, with the collector."
+            )
+        },
+        bot_saved: |chat| {
+            format!(
+                "The bot is saved, chat {chat}. The token is sealed with your Windows account and opens on no other PC."
+            )
+        },
+        no_bot: "No bot yet. Make your own with @BotFather, write it anything, and paste its token and the chat number here.",
+        token: "Bot token",
+        chat: "Chat number",
+        save: "Save the bot",
+        saved: "The bot is saved.",
+        invalid: "A token reads like 123456:ABC…, a chat is digits (with a minus for a group) or @channel. Check both.",
+        import_legacy: "Use the OLEGPC bot",
+        imported: "The bot is taken from ~/.olegpc/telegram.env.",
+        import_failed: "telegram.env has no token and chat of the right shape.",
+        forget: "Forget the bot",
+        forgotten: "The bot is forgotten, sending is off.",
+        test: "Send a test",
+        test_sent: "The test message went: look in Telegram.",
+        test_no_bot: "Save the bot first.",
+        test_refused: "Telegram refused: a wrong token or chat number.",
+        test_unreachable: "Telegram did not answer: no network, or Windows has no curl.",
+        sending_on: "Sending is on",
+        sending_off: "Sending is off: the panel only writes what it would send",
+        turn_on_sending: "Turn sending on",
+        turn_off_sending: "Turn sending off",
+        week_hint: "While the old OLEGPC\\Alerts task runs, keep sending off: for a week the records below are compared with its messages, then the old task goes off and this one on.",
+        recent_title: "What the recent checks found",
+        recent_empty: "The checks found nothing yet.",
+        last_check: |time| format!("Last check: {time}"),
+        never_checked: "No check yet: the first runs with the collector.",
+        sent: "Sent",
+        skipped_off: "Not sent: sending is off",
+        skipped_no_bot: "Not sent: no bot",
+        skipped_failed: "Not sent: Telegram did not take it",
+        failed: "It could not be saved. The panel's log has the details.",
     },
     months: [
         "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",

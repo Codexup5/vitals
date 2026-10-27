@@ -60,18 +60,32 @@ const MIGRATIONS: &[&str] = &[
        original TEXT NOT NULL,
        changed_at INTEGER NOT NULL
      );",
+    "CREATE TABLE settings (
+       key TEXT PRIMARY KEY,
+       value TEXT NOT NULL
+     );",
 ];
 
+/// Moves the schema up one step at a time, each step under a write lock that reads the version again: the collector,
+/// the network sampler and the commands open the database at once on a start, and only one of them may apply a step.
 pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
-    let version: i64 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-    let version = usize::try_from(version).unwrap_or(0);
-    for (index, migration) in MIGRATIONS.iter().enumerate().skip(version) {
-        conn.execute_batch(&format!(
-            "BEGIN; {migration}; PRAGMA user_version = {}; COMMIT;",
-            index + 1
-        ))?;
+    loop {
+        conn.execute_batch("BEGIN IMMEDIATE")?;
+        let version: i64 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+        let version = usize::try_from(version).unwrap_or(0);
+        let Some(migration) = MIGRATIONS.get(version) else {
+            return conn.execute_batch("COMMIT");
+        };
+        let applied = conn.execute_batch(&format!(
+            "{migration}; PRAGMA user_version = {};",
+            version + 1
+        ));
+        if let Err(error) = applied {
+            let _ = conn.execute_batch("ROLLBACK");
+            return Err(error);
+        }
+        conn.execute_batch("COMMIT")?;
     }
-    Ok(())
 }
 
 #[cfg(test)]
@@ -87,5 +101,25 @@ mod tests {
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
         assert_eq!(usize::try_from(version).unwrap(), MIGRATIONS.len());
+    }
+
+    #[test]
+    fn connections_that_open_at_once_apply_each_step_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("vitals.db");
+        let workers: Vec<_> = (0..6)
+            .map(|_| {
+                let path = path.clone();
+                std::thread::spawn(move || {
+                    let conn = Connection::open(path).unwrap();
+                    conn.busy_timeout(std::time::Duration::from_secs(10))
+                        .unwrap();
+                    migrate(&conn)
+                })
+            })
+            .collect();
+        for worker in workers {
+            worker.join().unwrap().unwrap();
+        }
     }
 }

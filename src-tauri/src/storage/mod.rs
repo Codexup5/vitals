@@ -4,6 +4,7 @@ mod network;
 pub mod queries;
 mod schema;
 mod services;
+mod settings;
 
 use std::path::Path;
 pub use vitals_ipc::DayCounts;
@@ -85,6 +86,8 @@ impl Storage {
     }
 
     fn from_connection(conn: Connection) -> Result<Self, StorageError> {
+        // The collector, the sampler and every command hold a connection each: a writer waits for another
+        conn.busy_timeout(std::time::Duration::from_secs(10))?;
         conn.pragma_update(None, "journal_mode", "WAL")?;
         conn.pragma_update(None, "foreign_keys", true)?;
         schema::migrate(&conn)?;
