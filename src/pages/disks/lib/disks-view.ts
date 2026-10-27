@@ -4,6 +4,7 @@ import { COMMON_TEXTS } from '@/shared/config/texts';
 import { formatDateTime } from '@/shared/lib/date';
 import { formatBytes } from '@/shared/lib/format-bytes';
 import { INTL_LOCALES, type Locale } from '@/shared/lib/i18n';
+import type { TagTone } from '@/shared/ui/tag/Tag';
 
 import { DISKS_TEXTS } from '../config/texts';
 import { sumOf, toRecommendationGroups, type RecommendationGroup } from './cleanup-view';
@@ -23,10 +24,17 @@ interface VolumeRow {
   usedPercent: number;
 }
 
+const HEALTH_TONES: Record<DiskHealth, TagTone> = {
+  healthy: 'ok',
+  warning: 'warn',
+  unhealthy: 'danger',
+  unknown: 'accent',
+};
+
 interface DriveRow {
   key: string;
   name: string;
-  health: DiskHealth;
+  healthTone: TagTone;
   healthLabel: string;
   temperature: string;
   wear: string;
@@ -106,7 +114,7 @@ export const toDisksView = ({ overview, error, scanStatus, systemDrive, locale }
     drives: overview.physicalDisks.map((drive, index) => ({
       key: `${drive.name}-${String(index)}`,
       name: `${drive.name} · ${drive.media} · ${formatBytes(drive.sizeBytes, locale)}`,
-      health: drive.health,
+      healthTone: HEALTH_TONES[drive.health],
       healthLabel: texts.drives[drive.health],
       temperature: drive.temperatureC === null ? missing : texts.drives.celsius(drive.temperatureC),
       wear: drive.wearPercent === null ? missing : texts.drives.percent(drive.wearPercent),

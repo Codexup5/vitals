@@ -81,7 +81,7 @@ export const EventFeed = ({
       <>
         <p className={styles.found}>{view.found}</p>
         <div className={styles.scroll}>
-          <table className={styles.table} aria-busy={view.isRefreshing}>
+          <table aria-busy={view.isRefreshing}>
             <thead>
               <tr>
                 <th scope="col">{texts.time}</th>

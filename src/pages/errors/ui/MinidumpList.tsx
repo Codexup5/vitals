@@ -43,7 +43,7 @@ export const MinidumpList = ({ texts, view, revealFailed, retryLabel, onReveal, 
     {view.status === 'empty' ? <p className={styles.message}>{view.message}</p> : null}
     {view.status === 'ready' ? (
       <div className={styles.scroll}>
-        <table className={styles.table}>
+        <table>
           <thead>
             <tr>
               <th scope="col">{texts.name}</th>

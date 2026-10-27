@@ -21,6 +21,8 @@ Import by the direct file path.
 - `@/shared/lib/report-error` — `reportError`
 - `@/shared/model/use-preferences` — `usePreferences`, `useTexts`
 - `@/shared/ui/button/Button` — `Button`
+- `@/shared/ui/eyebrow/Eyebrow` — `Eyebrow`
+- `@/shared/ui/tag/Tag` — `Tag` · types: `TagTone`
 
 ## entities
 

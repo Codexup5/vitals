@@ -105,6 +105,48 @@
         "components": [0.6784, 0.4549, 0],
         "hex": "#ad7400"
       }
+    },
+    "ok": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0.1412, 0.4118, 0.1647],
+        "hex": "#24692a"
+      }
+    },
+    "ok-soft": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0.8627, 0.9216, 0.8627],
+        "hex": "#dcebdc"
+      }
+    },
+    "warn": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0.4784, 0.3098, 0],
+        "hex": "#7a4f00"
+      }
+    },
+    "warn-soft": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0.9647, 0.9059, 0.7843],
+        "hex": "#f6e7c8"
+      }
+    },
+    "danger-soft": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0.9686, 0.8667, 0.8902],
+        "hex": "#f7dde3"
+      }
+    },
+    "accent-soft": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0.8667, 0.902, 0.9843],
+        "hex": "#dde6fb"
+      }
     }
   }
 }
