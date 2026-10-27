@@ -8,6 +8,7 @@ mod dumps;
 mod elevated;
 mod events;
 mod import;
+mod instance;
 mod logging;
 mod network;
 mod process;
@@ -40,6 +41,11 @@ pub fn run() -> ExitCode {
     if let Some(code) = elevated::handle(&args) {
         return code;
     }
+    // A second start shows the panel that runs and ends here
+    #[cfg(windows)]
+    let Some(instance) = instance::claim() else {
+        return ExitCode::SUCCESS;
+    };
     let result = tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             commands::log_ui_error,
@@ -79,7 +85,16 @@ pub fn run() -> ExitCode {
             commands::alerts::alerts_test,
             commands::alerts::alerts_set_sending
         ])
-        .setup(|app| {
+        .setup(move |app| {
+            #[cfg(windows)]
+            {
+                let handle = app.handle().clone();
+                instance.on_show(move || {
+                    if let Err(error) = show_main_window(&handle) {
+                        tracing::error!("could not show the window: {error}");
+                    }
+                });
+            }
             let data_dir = app_paths::ensure_data_dir()?;
             logging::init(&data_dir);
             let devices = std::sync::Arc::<network::devices::DevicesJob>::default();
