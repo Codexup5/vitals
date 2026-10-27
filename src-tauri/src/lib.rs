@@ -52,12 +52,12 @@ pub fn run() -> ExitCode {
         })
         .on_window_event(|window, event| {
             // Closing the window keeps the panel in the tray; Quit in the tray menu ends it
-            if let WindowEvent::CloseRequested { api, .. } = event {
-                if window.label() == MAIN_WINDOW {
-                    api.prevent_close();
-                    if let Err(error) = window.hide() {
-                        tracing::error!("could not hide the window: {error}");
-                    }
+            if let WindowEvent::CloseRequested { api, .. } = event
+                && window.label() == MAIN_WINDOW
+            {
+                api.prevent_close();
+                if let Err(error) = window.hide() {
+                    tracing::error!("could not hide the window: {error}");
                 }
             }
         })

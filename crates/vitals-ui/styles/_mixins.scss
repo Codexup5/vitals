@@ -1,0 +1,13 @@
+// A bordered card on the surface colour
+@mixin card {
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+// Numbers that line up in columns
+@mixin mono {
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+}

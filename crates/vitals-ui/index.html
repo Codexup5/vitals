@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Vitals</title>
+    <link data-trunk rel="icon" href="assets/favicon.svg" />
+    <link data-trunk rel="copy-dir" href="assets/fonts" />
+    <link data-trunk rel="css" href="assets/fonts.css" />
+    <link data-trunk rel="css" href="assets/app.css" />
+    <!-- Rust 1.87+ emits post-MVP opcodes (bulk memory and others) that wasm-opt validates only when told to -->
+    <link
+      data-trunk
+      rel="rust"
+      data-bin="vitals-ui"
+      data-wasm-opt="z"
+      data-wasm-opt-params="--enable-bulk-memory --enable-nontrapping-float-to-int --enable-sign-ext --enable-reference-types --enable-multivalue"
+    />
+  </head>
+  <body></body>
+</html>

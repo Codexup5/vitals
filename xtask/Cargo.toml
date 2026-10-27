@@ -1,0 +1,17 @@
+[package]
+name = "xtask"
+description = "The Vitals project tasks: styles, design tokens and their checks, commit messages"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+grass = { version = "0.13", default-features = false }
+serde_json = { workspace = true, features = ["preserve_order"] }
+
+[lints]
+workspace = true

@@ -3,39 +3,7 @@
 #[cfg(windows)]
 pub mod windows;
 
-use serde::Serialize;
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Volume {
-    pub letter: String,
-    pub label: String,
-    pub total_bytes: u64,
-    pub free_bytes: u64,
-}
-
-/// What Windows reports for a physical drive: its own health verdict and the reliability counters it exposes.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PhysicalDisk {
-    pub name: String,
-    pub media: String,
-    pub size_bytes: u64,
-    pub health: DiskHealth,
-    pub temperature_c: Option<u32>,
-    /// Percent of the rated endurance used (`NVMe` "percentage used"); 0 for a new drive
-    pub wear_percent: Option<u32>,
-    pub power_on_hours: Option<u64>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub enum DiskHealth {
-    Healthy,
-    Warning,
-    Unhealthy,
-    Unknown,
-}
+pub use vitals_ipc::{DiskHealth, PhysicalDisk, Volume};
 
 /// `MSFT_PhysicalDisk.HealthStatus`: 0 healthy, 1 warning, 2 unhealthy, 5 unknown.
 pub const fn health_from_code(code: u16) -> DiskHealth {

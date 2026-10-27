@@ -1,0 +1,391 @@
+//! The contract between the Vitals core and its window: the command names, their arguments and what they return.
+//!
+//! Both sides compile these types, so a field renamed on one side is a compile error on the other, not a broken
+//! screen. The wire format is JSON with camelCase keys, as Tauri's `invoke` carries it.
+
+use std::path::PathBuf;
+
+use serde::{Deserialize, Serialize};
+
+/// The names the core registers in `invoke_handler` and the window calls.
+pub mod command {
+    pub const HEALTH_OVERVIEW: &str = "health_overview";
+    pub const HEALTH_EVENTS: &str = "health_events";
+    pub const MINIDUMPS: &str = "minidumps";
+    pub const REVEAL_MINIDUMP: &str = "reveal_minidump";
+    pub const DISKS_OVERVIEW: &str = "disks_overview";
+    pub const SCAN_START: &str = "scan_start";
+    pub const SCAN_STATUS: &str = "scan_status";
+    pub const REVEAL_PATH: &str = "reveal_path";
+    pub const LOG_UI_ERROR: &str = "log_ui_error";
+}
+
+/// The size of a page of the event feed.
+pub const EVENT_PAGE_SIZE: u32 = 50;
+
+/// The widest chart range a command accepts.
+pub const MAX_RANGE_DAYS: u32 = 366;
+
+/// What went wrong inside a command, by the kind the window shows a message for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CommandErrorKind {
+    Storage,
+    Invalid,
+    Io,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CommandErrorBody {
+    pub kind: CommandErrorKind,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HealthOverviewArgs {
+    pub days: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HealthEventsArgs {
+    /// Empty means every kind
+    pub kinds: Vec<String>,
+    pub from: Option<String>,
+    pub to: Option<String>,
+    /// 0-based
+    pub page: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RevealMinidumpArgs {
+    pub name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LogUiErrorArgs {
+    pub message: String,
+    pub context: String,
+}
+
+/// The counters of one day, or of one month in the monthly series.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DayCounts {
+    pub crashes: u32,
+    pub bsod: u32,
+    pub gpu_reset: u32,
+    pub nv_container: u32,
+    pub whea: u32,
+    pub iommu: u32,
+    pub app_crashes: u32,
+    pub errors: u32,
+    /// "Steam.exe ×2", most frequent first, at most three
+    pub top_apps: Vec<String>,
+}
+
+/// A calendar day `2026-10-27`, or a month `2026-10`, with its counters.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DayRow {
+    pub day: String,
+    #[serde(flatten)]
+    pub counts: DayCounts,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HealthSummary {
+    /// Whole days since the last day with a crash or a BSOD; since the first recorded day when there was none
+    pub days_without_crash: Option<i64>,
+    pub system_drive_free_gb: Option<f64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HealthOverview {
+    pub summary: HealthSummary,
+    pub first_day: Option<String>,
+    pub days: Vec<DayRow>,
+    pub months: Vec<DayRow>,
+}
+
+/// The kinds of the event feed and its filter, in filter order: the kinds the core recognizes, then `error`, a System
+/// error of no known kind. On the wire it is the `kind` string of an [`EventRow`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum FeedKind {
+    Crash,
+    Bsod,
+    Whea,
+    GpuReset,
+    AppCrash,
+    NvContainer,
+    Iommu,
+    Error,
+}
+
+impl FeedKind {
+    pub const ALL: [Self; 8] = [
+        Self::Crash,
+        Self::Bsod,
+        Self::Whea,
+        Self::GpuReset,
+        Self::AppCrash,
+        Self::NvContainer,
+        Self::Iommu,
+        Self::Error,
+    ];
+
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Crash => "crash",
+            Self::Bsod => "bsod",
+            Self::Whea => "whea",
+            Self::GpuReset => "gpuReset",
+            Self::AppCrash => "appCrash",
+            Self::NvContainer => "nvContainer",
+            Self::Iommu => "iommu",
+            Self::Error => "error",
+        }
+    }
+
+    #[must_use]
+    pub fn parse(text: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|kind| kind.as_str() == text)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EventRow {
+    /// Unix seconds
+    pub time: i64,
+    pub log: String,
+    pub provider: String,
+    pub event_id: u32,
+    pub level: u8,
+    /// A known kind, or `error`
+    pub kind: String,
+    pub detail: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EventPage {
+    pub items: Vec<EventRow>,
+    pub total: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Dump {
+    pub name: String,
+    pub size: u64,
+    /// Unix seconds
+    pub time: i64,
+    /// The bugcheck code of the matching BSOD event, absent when the log no longer holds it
+    pub code: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RevealPathArgs {
+    pub path: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Volume {
+    pub letter: String,
+    pub label: String,
+    pub total_bytes: u64,
+    pub free_bytes: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DiskHealth {
+    Healthy,
+    Warning,
+    Unhealthy,
+    Unknown,
+}
+
+/// What Windows reports for a physical drive: its own health verdict and the reliability counters it exposes.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PhysicalDisk {
+    pub name: String,
+    pub media: String,
+    pub size_bytes: u64,
+    pub health: DiskHealth,
+    pub temperature_c: Option<u32>,
+    /// Percent of the rated endurance used (`NVMe` "percentage used"); 0 for a new drive
+    pub wear_percent: Option<u32>,
+    pub power_on_hours: Option<u64>,
+}
+
+/// The treemap categories of the brief, §4, in legend order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Category {
+    DocumentsMedia,
+    DevTools,
+    CodeProjects,
+    Sdks,
+    AiModels,
+    PackageCaches,
+    System,
+    Other,
+}
+
+impl Category {
+    pub const ALL: [Self; 8] = [
+        Self::DocumentsMedia,
+        Self::DevTools,
+        Self::CodeProjects,
+        Self::Sdks,
+        Self::AiModels,
+        Self::PackageCaches,
+        Self::System,
+        Self::Other,
+    ];
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Group {
+    Safe,
+    Review,
+}
+
+/// The cleanup candidates of the brief, §3: the whitelist first, then the ones to review one by one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CandidateKind {
+    /// `%TEMP%` files older than seven days, `%TEMP%\claude` excluded
+    UserTemp,
+    /// `C:\Windows\Temp` older than seven days: an admin action
+    WindowsTemp,
+    PnpmStore,
+    NpmCache,
+    DockerDangling,
+    DockerBuildCache,
+    NextCache,
+    Turbo,
+    ShaderCache,
+    StaleNodeModules,
+    DockerUnusedImages,
+    Vhdx,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Candidate {
+    pub id: String,
+    pub group: Group,
+    pub kind: CandidateKind,
+    pub path: Option<PathBuf>,
+    pub bytes: u64,
+    /// The size is what the folder holds; the command frees only part of it (pnpm prune, npm verify, hard links)
+    pub is_upper_bound: bool,
+    /// Unix seconds
+    pub last_modified: Option<i64>,
+    pub needs_admin: bool,
+}
+
+impl Candidate {
+    #[must_use]
+    pub fn new(group: Group, kind: CandidateKind, path: Option<PathBuf>, bytes: u64) -> Self {
+        let id = match &path {
+            Some(path) => format!("{kind:?}:{}", path.display()),
+            None => format!("{kind:?}"),
+        };
+        Self {
+            id,
+            group,
+            kind,
+            path,
+            bytes,
+            is_upper_bound: false,
+            last_modified: None,
+            needs_admin: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Tile {
+    pub path: PathBuf,
+    /// The path from the home, `AppData\Local\pnpm`
+    pub label: String,
+    pub bytes: u64,
+    pub category: Category,
+    /// Several small folders of one category shown as one tile
+    pub is_rest: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScanResult {
+    /// Unix seconds
+    pub finished_at: i64,
+    pub home: PathBuf,
+    pub total_bytes: u64,
+    pub files: u64,
+    pub links: u64,
+    pub unreadable: u64,
+    pub tiles: Vec<Tile>,
+    pub candidates: Vec<Candidate>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DisksOverview {
+    pub volumes: Vec<Volume>,
+    pub physical_disks: Vec<PhysicalDisk>,
+    pub scan: Option<ScanResult>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScanStatus {
+    pub is_running: bool,
+    pub files: u64,
+    pub bytes: u64,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_day_row_flattens_its_counters_in_camel_case() {
+        let row = DayRow {
+            day: "2026-10-27".to_owned(),
+            counts: DayCounts {
+                gpu_reset: 2,
+                ..DayCounts::default()
+            },
+        };
+        let json = serde_json::to_value(&row).unwrap();
+        assert_eq!(json["day"], "2026-10-27");
+        assert_eq!(json["gpuReset"], 2);
+        assert_eq!(serde_json::from_value::<DayRow>(json).unwrap(), row);
+    }
+
+    #[test]
+    fn a_feed_kind_reads_back() {
+        for kind in FeedKind::ALL {
+            assert_eq!(FeedKind::parse(kind.as_str()), Some(kind));
+        }
+        assert_eq!(FeedKind::parse("reboot"), None);
+    }
+
+    #[test]
+    fn a_command_error_reads_as_kind_and_message() {
+        let body: CommandErrorBody =
+            serde_json::from_str(r#"{"kind":"storage","message":"locked"}"#).unwrap();
+        assert_eq!(body.kind, CommandErrorKind::Storage);
+    }
+}

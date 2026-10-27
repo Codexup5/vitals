@@ -1,0 +1,190 @@
+// The pieces every screen uses: the page frame, cards, counters, tags, tables
+
+@use 'mixins';
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  max-width: var(--content-width);
+}
+
+.page-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-5);
+  align-items: flex-end;
+  justify-content: space-between;
+  padding-bottom: var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.page-heading,
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.section-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-5);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.eyebrow {
+  color: var(--color-text-muted);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-label);
+  letter-spacing: 0.08em;
+  line-height: var(--line-height-label);
+  text-transform: uppercase;
+}
+
+.toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.card {
+  @include mixins.card;
+}
+
+.notice {
+  @include mixins.card;
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
+}
+
+// A static block shaped like the content while it loads: no pulsing
+.skeleton {
+  height: var(--chart-height);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.muted {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+}
+
+.mono {
+  @include mixins.mono;
+}
+
+.wrap {
+  overflow-wrap: anywhere;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stat {
+  @include mixins.card;
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+
+  &[data-alarming] {
+    border-color: var(--color-danger);
+    box-shadow: inset 0 0 0 1px var(--color-danger);
+  }
+}
+
+.stat-value {
+  font-family: var(--font-family-display);
+  font-size: var(--font-size-stat);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-stat);
+  white-space: nowrap;
+
+  [data-alarming] > & {
+    color: var(--color-danger);
+  }
+}
+
+// A soft pill for a state or a total: it always carries its word, the tone only repeats it
+.tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-caption);
+  white-space: nowrap;
+
+  &[data-tone='ok'] {
+    background: var(--color-ok-soft);
+    color: var(--color-ok);
+  }
+
+  &[data-tone='warn'] {
+    background: var(--color-warn-soft);
+    color: var(--color-warn);
+  }
+
+  &[data-tone='danger'] {
+    background: var(--color-danger-soft);
+    color: var(--color-danger);
+  }
+}
+
+// A table in a card that scrolls sideways on a narrow window
+.table-card {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.pages {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+// The kind of an event: a swatch in its chart colour beside its word
+.kind {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  white-space: nowrap;
+
+  &::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border: 1px solid var(--color-border-control);
+    border-radius: 2px;
+  }
+
+  @each $kind, $token in (crash: crash, bsod: bsod, whea: whea, gpuReset: gpu-reset, appCrash: app-crash) {
+    &[data-kind='#{$kind}']::before {
+      border-color: var(--color-chart-#{$token});
+      background: var(--color-chart-#{$token});
+    }
+  }
+}

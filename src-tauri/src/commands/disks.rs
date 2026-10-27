@@ -4,29 +4,11 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
-use serde::Serialize;
 use tauri::State;
+use vitals_ipc::{DisksOverview, ScanResult, ScanStatus};
 
 use super::{AppState, CommandError, open};
 use crate::cleanup::Places;
-use crate::disks::{PhysicalDisk, Volume};
-use crate::scan::job::ScanResult;
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DisksOverview {
-    pub volumes: Vec<Volume>,
-    pub physical_disks: Vec<PhysicalDisk>,
-    pub scan: Option<ScanResult>,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ScanStatus {
-    pub is_running: bool,
-    pub files: u64,
-    pub bytes: u64,
-}
 
 fn home() -> Result<PathBuf, CommandError> {
     std::env::var_os("USERPROFILE")

@@ -2,8 +2,9 @@
 .claude/settings.local.json
 .claude/worktrees/
 .claude/logs/
-node_modules/
-dist/
+/target/
+crates/vitals-ui/dist/
+crates/vitals-ui/assets/app.css
 coverage/
 .env
 .env.*

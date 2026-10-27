@@ -1,165 +1,43 @@
 # Vitals
 
-A local Windows PC health panel: Tauri 2 (Rust) with a React front end in WebView2. The decisions are in the brief,
-`C:\Users\olegs\Desktop\Code\vitals-brief.md` (kept outside the repository: it holds the owner's machine facts). The
-kit sections below are the front-end canon; this section is what Vitals changes in it, and it wins over them.
+A local Windows PC health panel, all Rust: Tauri 2 for the core and the window, Leptos compiled to WebAssembly for the
+interface. The decisions are in the brief, `C:\Users\olegs\Desktop\Code\vitals-brief.md` (kept outside the repository: it
+holds the owner's machine facts). On 2026-10-27 the user moved the interface from React/TypeScript to Rust; this
+overrides the brief's React line, and the kit's web-react canon no longer applies.
 
-- **No back end, no telemetry.** Data comes from Rust commands (`invoke`), not HTTP: there is no api adapter, no MSW,
-  no Sentry, no Web Vitals beacon. Nothing leaves the PC except the user's own Telegram and the Vitals update check.
-- **The reference app is not in this repository** (`kit-lock.json` `reference: false`): copy from
-  `C:\Users\olegs\Desktop\Code\Project\kit\packs\web-react\src\entities\user` and `src\pages\user-*` there.
-- **Texts are ru and en.** A catalog is `const ru = {…} as const` plus `X_TEXTS: Localized<typeof ru> = { ru, en }`
-  (`shared/lib/i18n.ts`): a missing or extra key in `en` fails tsc. A component reads it with `useTexts(X_TEXTS)`.
-- **Theme and language** live in `shared/lib/preferences.ts` (Mocha by default, Latte on `data-theme='light'`).
-- **Rust** lives in `src-tauri/`; its canon is `.claude/rules/rust.md`.
-
-```bash
-pnpm tauri dev      # the panel with hot reload (Vite on 127.0.0.1:3000 inside the Tauri window)
-pnpm tauri build    # the release exe and the NSIS installer in src-tauri/target/release
-pnpm rust           # rust:fmt · rust:lint (clippy pedantic, -D warnings) · rust:test; pnpm verify runs it as conventions
-```
-
-| Where                     | What is there                                                      |
-| ------------------------- | ------------------------------------------------------------------ |
-| `.claude/rules/rust.md`   | the Rust canon: layout, errors, `unsafe`, safety of actions, gates |
-| `src-tauri/capabilities/` | what the window may call: one permission per command               |
-| `docs/deviations.md`      | every Vitals deviation from the kit, with its reason               |
-
-<!-- kit:web-react -->
-
-# Project
-
-React 19 · TypeScript strict · Vite · pnpm · FSD 2.1 (hybrid) · TanStack Query / Router / Form · Zod · SCSS modules on
-tokens · Vitest + Testing Library + MSW · Playwright · Sentry. The back end is reached through the api adapter (openapi-rest, the default: a REST back end the project
-does not own; trpc: the own back end of the project in `server/`; trpc-query: trpc with the tRPC options proxy in `entities/*/model`).
+- **No back end, no telemetry.** The window calls the core through `invoke`; nothing leaves the PC except the user's own
+  Telegram and the Vitals update check.
+- **One contract.** The command names and the types they exchange live in `crates/vitals-ipc`, compiled by both sides.
+- **Texts are ru and en**, every one in `crates/vitals-ui/src/texts.rs` (`RU` and `EN` of one struct: a missing text
+  does not compile).
+- **Theme and language** live in `crates/vitals-ui/src/preferences.rs` (Mocha by default, Latte on
+  `data-theme='light'`).
 
 ```bash
-pnpm dev            # localhost:3000, API on MSW mocks (.env.development)
-pnpm verify         # typecheck · lint · lint:styles · tokens:check · csp:check · lint:arch · lint:placement · prettier · knip · context:check · canon:check · conventions (a project with `scripts/conventions.mjs`) · test — before finishing a task
-pnpm typecheck:baseline # freeze or shrink the debt of a check: also lint:baseline, lint:styles:baseline, lint:arch:baseline, lint:placement:baseline, tokens:baseline, knip:baseline — a baseline only shrinks
-pnpm test:e2e       # Playwright scenarios on mobile and desktop, and the built app (project prod)
-pnpm test:e2e:docker # the same run in the Playwright image, as CI runs it
-pnpm test:visual    # the Linux visual baseline in the Playwright image; test:visual:update rewrites it
-pnpm mutation       # Stryker on lib/, mappers and schemas, 80% threshold — in strict and weekly in CI
-pnpm context        # rebuild the public API catalog after a change to a slice public API
-pnpm canon          # rebuild docs/canon.md after a change to a rule file, docs/gates.md or a skill; canon:check fails a stale one
-pnpm tokens         # build the DTCG tokens of src/shared/styles/tokens into tokens.scss
-pnpm csp:check      # csp.json against the canon, index.html and the hosting header of vercel.json
+cargo tauri dev                 # the panel with hot reload (Trunk serves the window on 127.0.0.1:3000)
+cargo tauri build               # the release exe and the NSIS installer in target/release
+cargo fmt --all -- --check      # the gates, as CI runs them
+cargo xtask check               #   design tokens, a stale _tokens.scss, the style rules
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo clippy -p vitals-ui --target wasm32-unknown-unknown --locked -- -D warnings
+cargo test --workspace --locked
 ```
 
-A back end in `server/` brings its own tsconfig, eslint and vitest configs; `pnpm dev` serves `api/hub.ts` under `/api`.
-The trpc-query adapter (`create --template swift --adapter trpc-query`) takes the files of trpc, drops
-`entities/*/api/*-api.ts` and adds `shared/api/trpc-query.ts` under `src/` and the user model files. The trpc adapters expect `server/router.ts`, `server/test/test-hub.ts` and `shared/api/auth-headers.ts` under `src/` from the
-template, and start the Telegram profile of `packs/telegram` (`shared/lib/telegram-profile.ts` and
-`shared/config/telegram-palette.ts` under `src/`).
+Tools: the `wasm32-unknown-unknown` target (`rustup target add`), Trunk 0.21 and the Tauri CLI 2 (`cargo install trunk
+--version 0.21.14 --locked`, `cargo install tauri-cli --version ^2 --locked`). No Node.
 
-## What to read and when
-
-This file is a router. The rules in `.claude/rules/` are binding both when generating and when reviewing. They load by
-path (`paths:` in each rule), so a session that touches no code does not carry them. Agents run without this file
-(`omitClaudeMd`) and read the rules they need themselves; the planner keeps this file, takes the reference from it and
-reads `architecture.md` itself.
-
-| Where                                   | What is there                                                                                              |
-| --------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `docs/canon.md`                         | **read first**: one line per rule — where it is written, the gate that checks it, the skills that apply it |
-| `.claude/rules/architecture.md`         | layers, slices, state, data flow, prohibitions and their reasons                                           |
-| `.claude/rules/code.md`                 | components, hooks, requests, errors, types, naming, forms, tests                                           |
-| `.claude/rules/styles.md`               | tokens, breakpoints, accessibility, motion                                                                 |
-| `docs/context/public-api.md`            | **what already exists** in slice public APIs — built by `pnpm context`                                     |
-| `docs/gates.md`                         | every canon rule with the machine check and the test behind it                                             |
-| `docs/process.md`                       | process notes: checks by kind of change, debugging, a dependency, review list                              |
-| `docs/security-headers.md`              | the content security policy: csp.json, the build meta, the hosting header, the Report-Only → enforce path  |
-| `docs/deviations.md`                    | deliberate deviations from the canon and debt in numbers                                                   |
-| `docs/known-issues.md`                  | recurring traps: symptom → cause → how to avoid it                                                         |
-| `src/entities/user`, `src/pages/user-*` | the reference: copy from it, not from the neighbouring file                                                |
-
-**Before creating** a component, hook or helper — `grep` `docs/context/public-api.md`. It exists — use it; it does not
-— write it.
-
-**Plan order:** plans go bottom-up `shared → entities → features → pages → app`, with no `widgets` layer.
-
-## Task → skill
-
-| Task                                                     | Skill                                                        |
-| -------------------------------------------------------- | ------------------------------------------------------------ |
-| New domain: entity, list, card, form                     | `new-domain`                                                 |
-| API method, DTO, mapper                                  | `api-method`                                                 |
-| Query, mutation, keys, invalidation, loader              | `query`                                                      |
-| List: filters and pagination in the URL                  | `list`                                                       |
-| Form: create, edit, back-end errors                      | `form`                                                       |
-| UI review against the Web Interface Guidelines checklist | `web-design-guidelines`                                      |
-| Playwright E2E: scenario, locators, flakes               | `playwright-best-practices`                                  |
-| React performance, composition                           | `vercel-react-best-practices`, `vercel-composition-patterns` |
-| Accessibility, visual design, FSD questions              | `accessibility`, `frontend-design`, `feature-sliced-design`  |
-
-<!-- /kit:web-react -->
-
-<!-- kit:core -->
-
-## Task → skill
-
-| Task                                                | Skill                                                                                           |
-| --------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| Non-trivial task, plan, decision                    | `kit:grill-me`, then `kit:plan` at 5+ files                                                     |
-| Execute an approved plan step by step               | workflow `/kit:ship` (`plan: docs/plans/…`, `phase`)                                            |
-| A task from an issue or text to a PR, autopilot     | `kit:task` — only the user starts it: `/kit:task <issue or text>`, or alone for the Ready queue |
-| Bug, regression, "it doesn't work"                  | `kit:debug`                                                                                     |
-| Session review: lessons from blocks and corrections | `kit:retro`                                                                                     |
-| Refactoring, moving, deleting                       | `kit:refactoring`                                                                               |
-| Check that it works before "done"                   | `kit:verify`                                                                                    |
-| Branch review before a PR, answering a review       | `kit:review`                                                                                    |
-| A separate copy for a task                          | `kit:worktree`                                                                                  |
-| Finish a branch: PR, merge, cleanup                 | `kit:finish-branch`                                                                             |
-| Commit                                              | `kit:commit`                                                                                    |
-| New dependency or utility                           | `kit:search-first`; a ready skill from the registry — `kit:find-skills`                         |
-| Roll kit onto an existing project                   | `kit:adopt`                                                                                     |
-
-## Agents and models
-
-The main session runs the task itself. An agent is called when the work is isolated and its result is a conclusion, not
-reading files.
-
-Default route is **Kit+**: the session runs on Opus xhigh, agents on the model and effort below. Inside `/kit:ship` the
-implementer follows the step risk: light (every file under `docs/`) runs on Haiku high without the step-reviewer, normal
-on Sonnet high, critical (a `Risk: critical` line or a `models.critical` file) on Sonnet high with the second route, the
-`kit:oracle` tests. A returned step retries one rung up. `kit-config models` shows the route of a kit mode. `kit:runner`
-(haiku, high) only runs `kit-plan-steps open`, `seal` and `take`, `kit-commit` and `pnpm verify` inside `/kit:ship`.
-With `tests` later or off in kit.json there is no second route: a critical step starts at its implementer.
-
-| Agent               | Model  | Effort | When                                                                                                 |
-| ------------------- | ------ | ------ | ---------------------------------------------------------------------------------------------------- |
-| `kit:planner`       | opus   | high   | a task of 5+ files or a new abstraction: a plan by layers before code                                |
-| `kit:implementer`   | sonnet | high   | a step of an approved plan with a clear file boundary                                                |
-| `kit:step-reviewer` | sonnet | high   | a plan step before `kit-commit`: is the step done, then the canon on the diff; read-only             |
-| `kit:oracle`        | sonnet | high   | a critical plan step before its implementer: property or table tests from the plan, the second route |
-| `kit:reviewer`      | opus   | xhigh  | once before a PR: the branch diff against `main`, read-only                                          |
-| `kit:explorer`      | haiku  | high   | a broad code search when an answer is needed, not file contents                                      |
-
-We do not run agents on every edit and do not spawn parallel ones without independent parts of the work.
+| Where                     | What is there                                                              |
+| ------------------------- | -------------------------------------------------------------------------- |
+| `.claude/rules/rust.md`   | the core canon: layout, errors, `unsafe`, safety of actions, gates         |
+| `.claude/rules/ui.md`     | the window canon: views and components, texts, state, styles, design rules |
+| `src-tauri/capabilities/` | what the window may call: one permission per command                       |
+| `docs/deviations.md`      | every deliberate deviation, with its reason                                |
+| `docs/known-issues.md`    | recurring traps: symptom → cause → how to avoid it                         |
 
 ## Boundaries
 
-- **Before code — `grill-me`**, depth by the cost of a mistake: a one-file edit — no questions; a new abstraction, 5+
-  files, a deviation from the canon — questioning with options and a recommendation: independent questions in a batch
-  of up to four, dependent ones one at a time, as in `grill-me`.
-- **Kit mode** — `canon` by default. Only the user changes it: `! kit-mode <mode>` or a message
-  that is exactly `kit: <mode>` (for the phone, where `!` does not work); a call or a write through Bash is denied and
-  rolled back (the file `.claude/kit-mode.local`, fallback source — `KIT_MODE`); you do not switch the mode yourself.
-  `fast` — small edits without questioning, post-edit runs only prettier; `strict` — questioning one level deeper, Stop
-  adds the related tests; `explore` — a prototype without questioning, Stop reports but does not block; `max` — as canon (the same gates, Stop and questioning), every agent on xhigh
-  (`kit-config models --mode max`). "Done" in any mode — by the last item.
-- **Tests mode** — `tests` in `kit.json`: `on` by default. Only the user changes it: `! kit-config tests <mode>` or a message
-  that is exactly `kit: tests <mode>` (`on`, `later` or `off`); an agent's call through Bash is denied and a change of
-  the key through Bash is rolled back; you do not switch it yourself, not even on a red gate. With `later` or `off` the test gates and the second route are
-  off and new code ships without tests: `later` leaves a test-lane card per feature, `off` none. The tests that exist
-  keep running.
-- A conflict between the task and the canon — say it before the code. Bypassing a gate by editing the linter config is
-  not allowed: a rule changes only by the user's decision.
-- **Boy-scout:** a file you touch is brought to the canon; a file you do not touch stays untouched. Large debt outside
-  the task boundary — a finding in the report, not an edit.
-- Wait for confirmation for: a new domain, deletion, irreversible changes, canon edits.
-- Prettier formats through a hook — we do not align by hand.
-- Done = `pnpm verify` green **and** the scenario checked (`verify`). Anything unchecked is called unchecked.
-
-<!-- /kit:core -->
+- A conflict between the task and the canon: say it before the code. A gate is not bypassed by editing its config; a
+  rule changes only by the user's decision.
+- Wait for confirmation for: deletion, irreversible changes, canon edits.
+- Done = every gate above green **and** the scenario checked in the running panel. Anything unchecked is called
+  unchecked.

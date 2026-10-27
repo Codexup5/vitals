@@ -285,4 +285,27 @@ mod tests {
             NaiveDate::from_ymd_opt(2026, 10, 28)
         );
     }
+
+    #[test]
+    fn every_stored_kind_is_a_kind_of_the_feed() {
+        let kinds = [
+            EventKind::Crash,
+            EventKind::Bsod,
+            EventKind::GpuReset,
+            EventKind::NvContainer,
+            EventKind::Whea,
+            EventKind::Iommu,
+            EventKind::AppCrash,
+        ];
+        for kind in kinds {
+            assert!(
+                vitals_ipc::FeedKind::parse(kind.as_str()).is_some(),
+                "{kind:?}"
+            );
+        }
+        assert_eq!(
+            crate::storage::queries::PLAIN_ERROR,
+            vitals_ipc::FeedKind::Error.as_str()
+        );
+    }
 }

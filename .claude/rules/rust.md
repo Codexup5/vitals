@@ -5,13 +5,12 @@ paths:
 
 # Rust canon (src-tauri)
 
-The kit has no Rust pack: this file is the Rust half of the canon, written in its manner. The front end keeps
-`architecture.md`, `code.md` and `styles.md`. Every rule below names its machine check; a rule without one is checked by
-review, as in `docs/canon.md`.
+The core of the panel. The window is Rust too since 2026-10-27; its canon is `ui.md`. Every rule below names its machine
+check; a rule without one is checked by review.
 
 ## 0. The criterion
 
-The same as `architecture.md` §0: architecture is the cost of the next change. A module of the panel (events, disks,
+Architecture is the cost of the next change. A module of the panel (events, disks,
 updates…) is one Rust module whose domain logic is testable without Windows, and a thin layer that talks to Windows.
 
 ## 1. Layout
@@ -31,7 +30,7 @@ A command is thin: no logic a test would need lives in it. A command added means
 ## 2. Errors
 
 - One `thiserror` enum per domain; `?` up to the command, which turns it into a serializable error the UI shows by kind
-  (`code.md` §5 applies on the UI side). `anyhow` is not used: the UI needs kinds, not text.
+  (`ui.md` §2 on the window side); the wire shape of the error is `vitals_ipc::CommandErrorBody`. `anyhow` is not used: the UI needs kinds, not text.
 - No `unwrap`, `expect`, `panic!`, `todo!`, `dbg!` outside `#[cfg(test)]` (clippy: `unwrap_used`, `expect_used`,
   `panic`, `todo`, `dbg_macro` are deny). A fallible start-up path returns an error from `setup`, not a panic.
 - Nothing prints to stdout (`print_stdout` deny); a diagnostic goes to stderr until the log file of stage 1.
@@ -52,12 +51,11 @@ A command is thin: no logic a test would need lives in it. A command added means
 
 | Rule                                                   | Checked by                                                                  |
 | ------------------------------------------------------ | --------------------------------------------------------------------------- |
-| rustfmt formatting                                     | `pnpm rust:fmt` (`cargo fmt --check`)                                       |
-| clippy `pedantic` plus the deny list of `Cargo.toml`   | `pnpm rust:lint` (`cargo clippy --all-targets --locked -- -D warnings`)     |
-| Domain logic has tests next to it (`#[cfg(test)] mod`) | `pnpm rust:test`, review                                                    |
+| rustfmt formatting                                     | `cargo fmt --all -- --check`                                                |
+| clippy `pedantic` plus the deny list of the workspace  | `cargo clippy --workspace --all-targets --locked -- -D warnings`            |
+| Domain logic has tests next to it (`#[cfg(test)] mod`) | `cargo test --workspace --locked`, review                                   |
 | A lint is not silenced by a config edit                | review: an `#[allow]` names its reason, a `Cargo.toml` lint change is asked |
 
-`pnpm verify` runs all three through its `conventions` step, and CI runs `pnpm verify`. Names: modules and functions
-snake_case, types PascalCase, a function is verb + noun; empty words (`data`, `info`, `utils`, `manager`) are not names,
-as in `code.md` §8. A comment only for a non-obvious algorithm or a workaround of an external limitation, as in
-`code.md` §13.
+CI runs every gate of `ui.md` §5. Names: modules and functions snake_case, types PascalCase, a function is verb + noun;
+empty words (`data`, `info`, `utils`, `manager`) are not names. A comment only for a non-obvious algorithm or a
+workaround of an external limitation.
