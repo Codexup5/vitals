@@ -1,4 +1,5 @@
 import { Button } from '@/shared/ui/button/Button';
+import { Eyebrow } from '@/shared/ui/eyebrow/Eyebrow';
 
 import { useErrorsPage } from '../model/use-errors-page';
 import { CrashChart } from './CrashChart';
@@ -14,7 +15,10 @@ export const ErrorsPage = () => {
   return (
     <main className={styles.page}>
       <header className={styles.header}>
-        <h1>{texts.title}</h1>
+        <div className={styles.heading}>
+          <Eyebrow>{texts.eyebrow}</Eyebrow>
+          <h1>{texts.title}</h1>
+        </div>
         <div className={styles.ranges} role="group" aria-label={texts.ranges.label}>
           {page.ranges.map((item) => (
             <Button

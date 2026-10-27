@@ -1,6 +1,7 @@
 import type { Localized } from '@/shared/lib/i18n';
 
 const ru = {
+  eyebrow: 'SMART · тома · домашняя папка',
   title: 'Диски и очистка',
   kpis: {
     freeNow: (drive: string) => `Свободно на ${drive}`,
@@ -68,6 +69,7 @@ const ru = {
 export const DISKS_TEXTS: Localized<typeof ru> = {
   ru,
   en: {
+    eyebrow: 'SMART · volumes · home folder',
     title: 'Disks and cleanup',
     kpis: {
       freeNow: (drive: string) => `Free on ${drive}`,

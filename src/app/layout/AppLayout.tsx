@@ -17,7 +17,10 @@ export const AppLayout = () => {
   return (
     <div className={styles.layout}>
       <aside className={styles.sidebar}>
-        <p className={styles.brand}>{texts.brand}</p>
+        <p className={styles.brand}>
+          <span className={styles.mark} aria-hidden="true" />
+          {texts.brand}
+        </p>
         <nav aria-label={texts.modules}>
           <ul className={styles.nav}>
             {MODULE_IDS.map((moduleId) => (

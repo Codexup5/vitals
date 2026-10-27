@@ -1,6 +1,8 @@
 import type { CSSProperties } from 'react';
 
 import { Button } from '@/shared/ui/button/Button';
+import { Eyebrow } from '@/shared/ui/eyebrow/Eyebrow';
+import { Tag } from '@/shared/ui/tag/Tag';
 
 import { useDisksPage } from '../model/use-disks-page';
 import { Recommendations } from './Recommendations';
@@ -15,7 +17,10 @@ export const DisksPage = () => {
   return (
     <main className={styles.page}>
       <header className={styles.header}>
-        <h1>{texts.title}</h1>
+        <div className={styles.heading}>
+          <Eyebrow>{texts.eyebrow}</Eyebrow>
+          <h1>{texts.title}</h1>
+        </div>
         <div className={styles.scan}>
           <Button type="button" onClick={page.startScan} disabled={page.isScanning} aria-busy={page.isScanning}>
             {texts.scan.start}
@@ -91,9 +96,7 @@ export const DisksPage = () => {
                     <tr key={drive.key}>
                       <td>{drive.name}</td>
                       <td>
-                        <span className={styles.health} data-health={drive.health}>
-                          {drive.healthLabel}
-                        </span>
+                        <Tag tone={drive.healthTone}>{drive.healthLabel}</Tag>
                       </td>
                       <td className={styles.mono}>{drive.temperature}</td>
                       <td className={styles.mono}>{drive.wear}</td>

@@ -1,3 +1,6 @@
+import '@fontsource-variable/golos-text';
+import '@fontsource-variable/jetbrains-mono';
+import '@fontsource-variable/unbounded';
 import './styles/global.scss';
 
 import { StrictMode } from 'react';

@@ -1,6 +1,7 @@
 import type { Localized } from '@/shared/lib/i18n';
 
 const ru = {
+  eyebrow: 'Журнал Windows · сбор каждые 5 минут',
   title: 'Ошибки и падения',
   ranges: {
     label: 'Период графика',
@@ -61,6 +62,7 @@ const ru = {
 export const ERRORS_TEXTS: Localized<typeof ru> = {
   ru,
   en: {
+    eyebrow: 'Windows event log · read every 5 minutes',
     title: 'Errors and crashes',
     ranges: {
       label: 'Chart period',

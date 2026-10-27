@@ -14,6 +14,7 @@ export const useModulePage = () => {
   const pageTexts = useTexts(MODULE_PAGE_TEXTS);
 
   return {
+    eyebrow: pageTexts.eyebrow,
     title: moduleTexts[moduleId],
     note: pageTexts.plannedStage(MODULE_STAGES[moduleId]),
   };

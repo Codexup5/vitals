@@ -1,4 +1,5 @@
 import { Button } from '@/shared/ui/button/Button';
+import { Tag } from '@/shared/ui/tag/Tag';
 
 import type { RecommendationGroup } from '../lib/cleanup-view';
 
@@ -33,7 +34,7 @@ export const Recommendations = ({
         <section key={group.group} className={styles.group} data-group={group.group} aria-label={group.title}>
           <header className={styles.groupHeader}>
             <h3>{group.title}</h3>
-            <span className={styles.mono}>{group.totalLabel}</span>
+            <Tag tone={group.group === 'safe' ? 'ok' : 'warn'}>{group.totalLabel}</Tag>
           </header>
           <p className={styles.muted}>{group.hint}</p>
           {group.rows.length === 0 ? <p className={styles.muted}>{nothingLabel}</p> : null}
