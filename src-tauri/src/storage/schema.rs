@@ -39,6 +39,15 @@ const MIGRATIONS: &[&str] = &[
        finished_at INTEGER NOT NULL,
        body TEXT NOT NULL
      );",
+    "CREATE TABLE net_samples (
+       time INTEGER PRIMARY KEY,
+       gateway_ms REAL,
+       gateway_loss REAL,
+       gateway_jitter REAL,
+       internet_ms REAL,
+       internet_loss REAL NOT NULL,
+       internet_jitter REAL
+     );",
 ];
 
 pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {

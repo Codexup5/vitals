@@ -1,5 +1,6 @@
 //! `%APPDATA%\Vitals\vitals.db`: event rows for a year, daily counts and snapshots for good.
 
+mod network;
 pub mod queries;
 mod schema;
 

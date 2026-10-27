@@ -5,6 +5,7 @@
 )]
 
 pub mod disks;
+pub mod network;
 pub mod runners;
 pub mod updates;
 
@@ -35,6 +36,7 @@ pub struct AppState {
     pub plan: std::sync::Mutex<Option<crate::cleanup::plan::Plan>>,
     pub updates: Arc<crate::updates::job::UpdatesJob>,
     pub mode: Arc<crate::runners::mode::ModeJob>,
+    pub speed: Arc<crate::network::speed::SpeedJob>,
 }
 
 #[derive(Debug, thiserror::Error)]

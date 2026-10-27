@@ -7,6 +7,7 @@ mod dumps;
 mod events;
 mod import;
 mod logging;
+mod network;
 mod process;
 mod runners;
 mod scan;
@@ -55,7 +56,11 @@ pub fn run() -> ExitCode {
             commands::runners::runners_present,
             commands::runners::runners_overview,
             commands::runners::mode_start,
-            commands::runners::mode_status
+            commands::runners::mode_status,
+            commands::network::network_overview,
+            commands::network::network_probe,
+            commands::network::speed_test_start,
+            commands::network::speed_test_status
         ])
         .setup(|app| {
             let data_dir = app_paths::ensure_data_dir()?;
@@ -67,9 +72,11 @@ pub fn run() -> ExitCode {
                 plan: std::sync::Mutex::default(),
                 updates: std::sync::Arc::default(),
                 mode: std::sync::Arc::default(),
+                speed: std::sync::Arc::default(),
             });
             let is_russian = system::windows::ui_language_is_russian();
             tray::create(app.handle(), is_russian)?;
+            start_network_sampler(data_dir.clone());
             start_collector(app.handle().clone(), data_dir, is_russian);
             Ok(())
         })
@@ -145,6 +152,41 @@ fn start_collector(app: AppHandle, data_dir: PathBuf, is_russian: bool) {
         });
     if let Err(error) = spawned {
         tracing::error!("the collector thread did not start: {error}");
+    }
+}
+
+/// Measures the way out every five minutes, as the collector counts events: the network chart needs no open window.
+fn start_network_sampler(data_dir: PathBuf) {
+    let spawned = std::thread::Builder::new()
+        .name("network".to_owned())
+        .spawn(move || {
+            let storage = match Storage::open(&data_dir.join(storage::DB_FILE)) {
+                Ok(storage) => storage,
+                Err(error) => {
+                    tracing::error!(
+                        "the database did not open, the network sampler is off: {error}"
+                    );
+                    return;
+                }
+            };
+            loop {
+                let now = Utc::now().timestamp();
+                #[cfg(windows)]
+                if let Some(sample) = network::sample(now)
+                    && let Err(error) = storage.put_net_sample(&sample)
+                {
+                    tracing::warn!("the network sample was not saved: {error}");
+                }
+                if let Err(error) =
+                    storage.prune_net_samples(now - network::KEEP_DAYS * 24 * 60 * 60)
+                {
+                    tracing::warn!("old network samples were not pruned: {error}");
+                }
+                std::thread::sleep(collector::INTERVAL);
+            }
+        });
+    if let Err(error) = spawned {
+        tracing::error!("the network sampler did not start: {error}");
     }
 }
 
