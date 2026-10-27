@@ -1,19 +1,35 @@
 mod app_paths;
+mod collector;
+mod commands;
+mod events;
+mod import;
+mod logging;
+mod storage;
+mod system;
 mod tray;
 
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use tauri::{Manager, WindowEvent};
+use chrono::{Local, Utc};
+use tauri::{AppHandle, Manager, WindowEvent};
+
+use crate::collector::Collector;
+use crate::storage::Storage;
 
 pub const MAIN_WINDOW: &str = "main";
 
-/// Starts the panel: the tray icon, the main window hidden to the tray on close, the data folder in `%APPDATA%\Vitals`.
+/// Starts the panel: the log, the tray icon, the collector thread, the main window hidden to the tray on close.
 #[must_use]
 pub fn run() -> ExitCode {
     let result = tauri::Builder::default()
+        .invoke_handler(tauri::generate_handler![commands::log_ui_error])
         .setup(|app| {
-            app_paths::ensure_data_dir()?;
-            tray::create(app.handle())?;
+            let data_dir = app_paths::ensure_data_dir()?;
+            logging::init(&data_dir);
+            let is_russian = system::windows::ui_language_is_russian();
+            tray::create(app.handle(), is_russian)?;
+            start_collector(app.handle().clone(), data_dir, is_russian);
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -22,7 +38,7 @@ pub fn run() -> ExitCode {
                 if window.label() == MAIN_WINDOW {
                     api.prevent_close();
                     if let Err(error) = window.hide() {
-                        eprintln!("vitals: could not hide the window: {error}");
+                        tracing::error!("could not hide the window: {error}");
                     }
                 }
             }
@@ -32,9 +48,59 @@ pub fn run() -> ExitCode {
     match result {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
-            eprintln!("vitals: {error}");
+            tracing::error!("the panel stopped: {error}");
             ExitCode::FAILURE
         }
+    }
+}
+
+/// The old PowerShell collector's history, imported once per day it lacks (stage 8 retires that collector).
+fn legacy_health_json() -> Option<PathBuf> {
+    let profile = std::env::var_os("USERPROFILE")?;
+    let path = Path::new(&profile)
+        .join(".olegpc")
+        .join("health")
+        .join("health.json");
+    path.is_file().then_some(path)
+}
+
+fn start_collector(app: AppHandle, data_dir: PathBuf, is_russian: bool) {
+    let spawned = std::thread::Builder::new()
+        .name("collector".to_owned())
+        .spawn(move || {
+            let storage = match Storage::open(&data_dir.join(storage::DB_FILE)) {
+                Ok(storage) => storage,
+                Err(error) => {
+                    tracing::error!("the database did not open, the collector is off: {error}");
+                    return;
+                }
+            };
+            if let Some(path) = legacy_health_json() {
+                match import::import_file(&storage, &path) {
+                    Ok(report) => tracing::info!(
+                        "health.json: {} days imported, {} skipped",
+                        report.imported,
+                        report.skipped
+                    ),
+                    Err(error) => tracing::warn!("health.json was not imported: {error}"),
+                }
+            }
+            let mut collector = Collector::new(storage);
+            loop {
+                match collector.run_once(Utc::now()) {
+                    Ok(summary) => tray::show_summary(&app, &summary, is_russian),
+                    Err(error) => {
+                        tracing::error!("the collector run failed: {error}");
+                        if let Ok(summary) = collector.summary(Local::now().date_naive()) {
+                            tray::show_summary(&app, &summary, is_russian);
+                        }
+                    }
+                }
+                std::thread::sleep(collector::INTERVAL);
+            }
+        });
+    if let Err(error) = spawned {
+        tracing::error!("the collector thread did not start: {error}");
     }
 }
 

@@ -1,0 +1,1 @@
+<Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'><System><Provider Name='EventLog'/><EventID Qualifiers='32768'>6008</EventID><Level>2</Level><TimeCreated SystemTime='2026-10-27T09:34:20.0000000Z'/><EventRecordID>85150</EventRecordID><Channel>System</Channel><Computer>PC</Computer></System><EventData><Data>a &amp; b</Data><Data></Data></EventData></Event>
