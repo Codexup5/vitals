@@ -144,9 +144,10 @@ impl UpdatesJob {
                 job.lock().current = Some(package.id.clone());
                 let result = upgrade_one(package, host.as_ref());
                 tracing::info!(
-                    "winget upgrade {}: {:?}, {} -> {:?}",
+                    "winget upgrade {}: {:?} (code {:?}), {} -> {:?}",
                     result.id,
                     result.outcome,
+                    result.code,
                     result.before,
                     result.after
                 );

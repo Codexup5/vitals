@@ -5,6 +5,7 @@
 )]
 
 pub mod disks;
+pub mod runners;
 pub mod updates;
 
 use std::path::PathBuf;
@@ -33,6 +34,7 @@ pub struct AppState {
     /// The last cleanup preview: a run executes this one, by its id, or nothing
     pub plan: std::sync::Mutex<Option<crate::cleanup::plan::Plan>>,
     pub updates: Arc<crate::updates::job::UpdatesJob>,
+    pub mode: Arc<crate::runners::mode::ModeJob>,
 }
 
 #[derive(Debug, thiserror::Error)]

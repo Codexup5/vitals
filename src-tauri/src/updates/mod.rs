@@ -68,6 +68,7 @@ pub fn installed_version(output: &str, id: &str) -> Option<String> {
 /// winget's own exit codes (`returnCodes.md` of winget-cli), read as what the user should do next. winget exits
 /// with an HRESULT, which the process code carries as a negative i32.
 pub fn outcome_of(code: i32) -> UpgradeOutcome {
+    const HASH_MISMATCH: i32 = 0x8A15_0011_u32.cast_signed();
     const PACKAGE_IN_USE: i32 = 0x8A15_0101_u32.cast_signed();
     const FILE_IN_USE: i32 = 0x8A15_0103_u32.cast_signed();
     const IN_USE_BY_APPLICATION: i32 = 0x8A15_0111_u32.cast_signed();
@@ -82,6 +83,7 @@ pub fn outcome_of(code: i32) -> UpgradeOutcome {
         PACKAGE_IN_USE | FILE_IN_USE | IN_USE_BY_APPLICATION => UpgradeOutcome::Open,
         REBOOT_TO_FINISH | REBOOT_FOR_INSTALL | REBOOT_INITIATED => UpgradeOutcome::NeedsRestart,
         CANCELLED_BY_USER | UAC_DECLINED => UpgradeOutcome::Declined,
+        HASH_MISMATCH => UpgradeOutcome::HashMismatch,
         _ => UpgradeOutcome::Failed,
     }
 }
@@ -286,6 +288,11 @@ Some Long Na…   Vendor.SomeLongNam…     1.0             2.0           winget
             UpgradeOutcome::NeedsRestart
         );
         assert_eq!(outcome_of(1223), UpgradeOutcome::Declined);
+        // 2026-10-28: Ubisoft Connect and Waves Central replaced their installers under the winget manifest
+        assert_eq!(
+            outcome_of(0x8A15_0011_u32.cast_signed()),
+            UpgradeOutcome::HashMismatch
+        );
         assert_eq!(outcome_of(1), UpgradeOutcome::Failed);
     }
 

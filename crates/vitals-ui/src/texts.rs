@@ -20,6 +20,7 @@ pub struct Texts {
     pub disks: DisksPage,
     pub disk: Disk,
     pub updates: UpdatesPage,
+    pub runners: RunnersPage,
     /// Short month names, January first
     pub months: [&'static str; 12],
 }
@@ -248,6 +249,7 @@ pub struct UpdatesPage {
     pub unchanged: fn(&str, &str) -> String,
     pub was_open: fn(&str) -> String,
     pub needs_restart: fn(&str) -> String,
+    pub hash_mismatch: fn(&str) -> String,
     pub declined: fn(&str) -> String,
     pub failed: fn(&str, &str) -> String,
     pub tools_title: &'static str,
@@ -265,6 +267,52 @@ pub struct UpdatesPage {
     pub firmware_line: fn(&str, &str, &str) -> String,
     pub firmware_hint: &'static str,
     pub tools_failed: &'static str,
+}
+
+#[derive(Debug)]
+pub struct RunnersPage {
+    pub eyebrow: &'static str,
+    pub title: &'static str,
+    pub refresh: &'static str,
+    pub runners_title: &'static str,
+    pub runners_hint: &'static str,
+    pub no_runners: &'static str,
+    pub no_gh: &'static str,
+    pub partial: &'static str,
+    pub online: &'static str,
+    pub busy: &'static str,
+    pub offline: &'static str,
+    pub no_status: &'static str,
+    pub listening: &'static str,
+    pub not_listening: &'static str,
+    pub docker_title: &'static str,
+    pub docker_running: fn(usize, usize) -> String,
+    pub docker_stopped: &'static str,
+    pub docker_missing: &'static str,
+    pub no_containers: &'static str,
+    pub no_project: &'static str,
+    pub state_running: &'static str,
+    pub state_exited: &'static str,
+    pub state_restarting: &'static str,
+    pub state_paused: &'static str,
+    pub state_created: &'static str,
+    pub modes_title: &'static str,
+    pub modes_hint: &'static str,
+    pub gaming: &'static str,
+    pub gaming_hint: &'static str,
+    pub coding: &'static str,
+    pub coding_hint: &'static str,
+    pub gaming_confirm_title: &'static str,
+    pub gaming_confirm: fn(usize) -> String,
+    pub stop: &'static str,
+    pub cancel: &'static str,
+    pub switching_gaming: &'static str,
+    pub switching_coding: &'static str,
+    pub gaming_done: &'static str,
+    pub gaming_failed: &'static str,
+    pub coding_done: fn(u32) -> String,
+    pub coding_failed: &'static str,
+    pub mode_failed: &'static str,
 }
 
 #[derive(Debug)]
@@ -554,6 +602,11 @@ pub static RU: Texts = Texts {
                 "{name}: обновление завершится после перезагрузки — перезагрузите ПК сами, когда удобно"
             )
         },
+        hash_mismatch: |name| {
+            format!(
+                "{name}: установщик на сайте производителя не совпадает с проверенным в winget, и winget его не ставит. Обновите с сайта производителя или проверьте через несколько дней"
+            )
+        },
         declined: |name| format!("{name}: права не даны — не обновлено"),
         failed: |name, code| format!("{name}: не удалось (код {code})"),
         tools_title: "Остальное",
@@ -571,6 +624,58 @@ pub static RU: Texts = Texts {
         firmware_line: |board, version, date| format!("{board} · версия {version} от {date}"),
         firmware_hint: "Прошивку обновляют вручную с сайта производителя платы; панель этого не делает.",
         tools_failed: "Не удалось прочитать сведения о прошивке и драйвере.",
+    },
+    runners: RunnersPage {
+        eyebrow: "GitHub Actions · Docker · WSL",
+        title: "Раннеры и Docker",
+        refresh: "Обновить",
+        runners_title: "Раннеры",
+        runners_hint: "Self-hosted раннеры репозиториев, у которых есть папка C:\\actions-runner* на этом ПК.",
+        no_runners: "Раннеров не найдено.",
+        no_gh: "gh не установлен или не выполнен вход: статус на GitHub неизвестен. Войдите: gh auth login.",
+        partial: "GitHub ответил не по всем репозиториям: статус части раннеров неизвестен.",
+        online: "В сети",
+        busy: "Выполняет задачу",
+        offline: "Не в сети",
+        no_status: "Статус неизвестен",
+        listening: "Запущен на ПК",
+        not_listening: "Не запущен на ПК",
+        docker_title: "Docker",
+        docker_running: |running, total| {
+            format!("Docker работает · контейнеров запущено {running} из {total}")
+        },
+        docker_stopped: "Docker Desktop остановлен.",
+        docker_missing: "Docker не установлен.",
+        no_containers: "Контейнеров нет.",
+        no_project: "Без проекта",
+        state_running: "Работает",
+        state_exited: "Остановлен",
+        state_restarting: "Перезапускается",
+        state_paused: "На паузе",
+        state_created: "Создан",
+        modes_title: "Режимы",
+        modes_hint: "Раннеры Windows работают в обоих режимах.",
+        gaming: "Игры",
+        gaming_hint: "Останавливает Docker Desktop и WSL: освобождает память и процессор. Раннеры в контейнерах уходят в offline.",
+        coding: "Кодинг",
+        coding_hint: "Запускает Docker Desktop и ждёт, пока поднимутся контейнеры.",
+        gaming_confirm_title: "Остановить Docker и WSL?",
+        gaming_confirm: |running| {
+            format!(
+                "Остановятся все контейнеры ({running} сейчас работают) и всё, что запущено в WSL. Раннеры в контейнерах уйдут в offline до режима «Кодинг»."
+            )
+        },
+        stop: "Остановить",
+        cancel: "Отмена",
+        switching_gaming: "Останавливаю Docker и WSL…",
+        switching_coding: "Запускаю Docker и жду контейнеры…",
+        gaming_done: "Режим «Игры»: Docker и WSL остановлены.",
+        gaming_failed: "Режим «Игры»: остановилось не всё. Проверьте Docker Desktop.",
+        coding_done: |running| {
+            format!("Режим «Кодинг»: Docker запущен, контейнеров работает: {running}.")
+        },
+        coding_failed: "Режим «Кодинг»: Docker не ответил. Запустите Docker Desktop сами.",
+        mode_failed: "Переключение не запустилось. Обновите экран и повторите.",
     },
     months: [
         "янв.",
@@ -854,6 +959,11 @@ pub static EN: Texts = Texts {
                 "{name}: the update finishes after a restart — restart the PC yourself when convenient"
             )
         },
+        hash_mismatch: |name| {
+            format!(
+                "{name}: the maker's installer does not match the one winget checked, so winget will not install it. Update from the maker's site or check again in a few days"
+            )
+        },
         declined: |name| format!("{name}: rights not given — not updated"),
         failed: |name, code| format!("{name}: failed (code {code})"),
         tools_title: "Everything else",
@@ -871,6 +981,56 @@ pub static EN: Texts = Texts {
         firmware_line: |board, version, date| format!("{board} · version {version} of {date}"),
         firmware_hint: "Firmware is updated by hand from the board maker's site; the panel does not do it.",
         tools_failed: "Could not read the firmware and driver details.",
+    },
+    runners: RunnersPage {
+        eyebrow: "GitHub Actions · Docker · WSL",
+        title: "Runners and Docker",
+        refresh: "Refresh",
+        runners_title: "Runners",
+        runners_hint: "Self-hosted runners of the repositories with a C:\\actions-runner* folder on this PC.",
+        no_runners: "No runners found.",
+        no_gh: "gh is not installed or not signed in: the status on GitHub is unknown. Sign in: gh auth login.",
+        partial: "GitHub did not answer for every repository: some runners have no status.",
+        online: "Online",
+        busy: "Running a job",
+        offline: "Offline",
+        no_status: "Status unknown",
+        listening: "Running on this PC",
+        not_listening: "Not running on this PC",
+        docker_title: "Docker",
+        docker_running: |running, total| {
+            format!("Docker runs · {running} of {total} containers up")
+        },
+        docker_stopped: "Docker Desktop is stopped.",
+        docker_missing: "Docker is not installed.",
+        no_containers: "No containers.",
+        no_project: "No project",
+        state_running: "Running",
+        state_exited: "Stopped",
+        state_restarting: "Restarting",
+        state_paused: "Paused",
+        state_created: "Created",
+        modes_title: "Modes",
+        modes_hint: "Windows runners work in both modes.",
+        gaming: "Gaming",
+        gaming_hint: "Stops Docker Desktop and WSL to free memory and CPU. Runners in containers go offline.",
+        coding: "Coding",
+        coding_hint: "Starts Docker Desktop and waits for the containers to come up.",
+        gaming_confirm_title: "Stop Docker and WSL?",
+        gaming_confirm: |running| {
+            format!(
+                "Every container stops ({running} run now), and everything running in WSL. Runners in containers stay offline until the coding mode."
+            )
+        },
+        stop: "Stop",
+        cancel: "Cancel",
+        switching_gaming: "Stopping Docker and WSL…",
+        switching_coding: "Starting Docker and waiting for the containers…",
+        gaming_done: "Gaming mode: Docker and WSL are stopped.",
+        gaming_failed: "Gaming mode: not everything stopped. Check Docker Desktop.",
+        coding_done: |running| format!("Coding mode: Docker runs, {running} containers up."),
+        coding_failed: "Coding mode: Docker did not answer. Start Docker Desktop yourself.",
+        mode_failed: "The switch did not start. Refresh the screen and try again.",
     },
     months: [
         "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
