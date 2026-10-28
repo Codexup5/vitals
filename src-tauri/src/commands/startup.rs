@@ -2,7 +2,8 @@
 
 use tauri::State;
 use vitals_ipc::{
-    ChangeOutcome, ServiceSetArgs, ServicesOverview, StartupOverview, StartupSetArgs,
+    AutostartStatus, ChangeOutcome, ServiceSetArgs, ServicesOverview, StartupOverview,
+    StartupSetArgs,
 };
 
 use super::{AppState, CommandError, open};
@@ -103,4 +104,34 @@ pub fn service_set(
         }
     );
     Ok(outcome)
+}
+
+fn this_exe() -> Result<std::path::PathBuf, CommandError> {
+    Ok(std::env::current_exe()?)
+}
+
+/// Whether the panel starts at sign-in.
+#[tauri::command]
+pub fn autostart_status() -> Result<AutostartStatus, CommandError> {
+    #[cfg(windows)]
+    return Ok(startup::autostart_status(&this_exe()?));
+    #[cfg(not(windows))]
+    Ok(AutostartStatus {
+        is_enabled: false,
+        other_copy: None,
+    })
+}
+
+/// Turns the start at sign-in on, for this exe, or off; answers with the status it reads after.
+#[tauri::command]
+pub fn autostart_set(enable: bool) -> Result<AutostartStatus, CommandError> {
+    let exe = this_exe()?;
+    #[cfg(windows)]
+    startup::set_autostart(enable, &exe, chrono::Utc::now().timestamp())?;
+    tracing::info!(
+        "autostart {} for {}",
+        if enable { "on" } else { "off" },
+        exe.display()
+    );
+    autostart_status()
 }

@@ -42,19 +42,22 @@ fn signal_first(names: Names) {
     }
 }
 
-/// The first start of a session gets the instance; a later one shows the first panel and gets none.
-pub fn claim() -> Option<Instance> {
-    claim_named(super::NAMES)
+/// The first start of a session gets the instance; a later one gets none, and shows the first panel when
+/// `show_first` (a start at sign-in leaves it in the tray).
+pub fn claim(show_first: bool) -> Option<Instance> {
+    claim_named(super::NAMES, show_first)
 }
 
-fn claim_named(names: Names) -> Option<Instance> {
+fn claim_named(names: Names, show_first: bool) -> Option<Instance> {
     // SAFETY: the name is a live null-terminated string; the mutex is not owned on creation.
     let mutex = unsafe { CreateMutexW(None, false, &HSTRING::from(names.mutex)) }.ok()?;
     // SAFETY: read right after the call that set it.
     if unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
         // SAFETY: the handle of the existing mutex is not needed by a start that exits.
         let _ = unsafe { CloseHandle(mutex) };
-        signal_first(names);
+        if show_first {
+            signal_first(names);
+        }
         return None;
     }
     // SAFETY: an unnamed security, an auto-reset event that starts unset, its name a live string.
@@ -95,9 +98,14 @@ mod tests {
             mutex: r"Local\Vitals.Test.Instance",
             show: r"Local\Vitals.Test.Instance.Show",
         };
-        let first = claim_named(names).unwrap();
-        assert!(claim_named(names).is_none());
-        // The second claim set the event: the first one is told
+        let first = claim_named(names, true).unwrap();
+        // A start at sign-in leaves the first panel as it is
+        assert!(claim_named(names, false).is_none());
+        // SAFETY: the event of `first` is open for the whole test.
+        let waited = unsafe { WaitForSingleObject(handle(first.event), 100) };
+        assert_ne!(waited, WAIT_OBJECT_0);
+        assert!(claim_named(names, true).is_none());
+        // The third claim set the event: the first one is told
         // SAFETY: the event of `first` is open for the whole test.
         let waited = unsafe { WaitForSingleObject(handle(first.event), 1000) };
         assert_eq!(waited, WAIT_OBJECT_0);

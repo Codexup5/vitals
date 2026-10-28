@@ -52,12 +52,15 @@ fn run_without_panel(args: &[String]) -> Option<ExitCode> {
 /// Starts the panel: the log, the tray icon, the collector thread, the main window hidden to the tray on close.
 #[must_use]
 pub fn run() -> ExitCode {
-    if let Some(code) = run_without_panel(&std::env::args().collect::<Vec<_>>()) {
+    let args: Vec<String> = std::env::args().collect();
+    if let Some(code) = run_without_panel(&args) {
         return code;
     }
+    // The start at sign-in stays in the tray: the window is created hidden and shown only by any other start
+    let is_autostart = args.iter().any(|arg| arg == startup::autostart::FLAG);
     // A second start shows the panel that runs and ends here
     #[cfg(windows)]
-    let Some(instance) = instance::claim() else {
+    let Some(instance) = instance::claim(!is_autostart) else {
         return ExitCode::SUCCESS;
     };
     let result = tauri::Builder::default()
@@ -101,7 +104,9 @@ pub fn run() -> ExitCode {
             commands::claude::claude_status,
             commands::claude::claude_connect,
             commands::sensors::sensors_live,
-            commands::sensors::sensors_history
+            commands::sensors::sensors_history,
+            commands::startup::autostart_status,
+            commands::startup::autostart_set
         ])
         .setup(move |app| {
             #[cfg(windows)]
@@ -113,27 +118,7 @@ pub fn run() -> ExitCode {
                     }
                 });
             }
-            let data_dir = app_paths::ensure_data_dir()?;
-            logging::init(&data_dir);
-            let devices = std::sync::Arc::<network::devices::DevicesJob>::default();
-            app.manage(commands::AppState {
-                db_path: data_dir.join(storage::DB_FILE),
-                data_dir: data_dir.clone(),
-                scan: std::sync::Arc::default(),
-                plan: std::sync::Mutex::default(),
-                updates: std::sync::Arc::default(),
-                mode: std::sync::Arc::default(),
-                speed: std::sync::Arc::default(),
-                devices: std::sync::Arc::clone(&devices),
-                sensors: std::sync::Arc::default(),
-            });
-            let is_russian = system::windows::ui_language_is_russian();
-            tray::create(app.handle(), is_russian)?;
-            start_network_sampler(data_dir.clone(), devices);
-            #[cfg(windows)]
-            start_sensor_sampler(data_dir.clone());
-            start_collector(app.handle().clone(), data_dir, is_russian);
-            Ok(())
+            start_panel(app, is_autostart)
         })
         .on_window_event(|window, event| {
             // Closing the window keeps the panel in the tray; Quit in the tray menu ends it
@@ -155,6 +140,37 @@ pub fn run() -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+/// The state of the commands, the tray, the samplers and the collector; the window shows unless the start is the one
+/// at sign-in.
+fn start_panel(app: &tauri::App, is_autostart: bool) -> Result<(), Box<dyn std::error::Error>> {
+    let data_dir = app_paths::ensure_data_dir()?;
+    logging::init(&data_dir);
+    let devices = std::sync::Arc::<network::devices::DevicesJob>::default();
+    app.manage(commands::AppState {
+        db_path: data_dir.join(storage::DB_FILE),
+        data_dir: data_dir.clone(),
+        scan: std::sync::Arc::default(),
+        plan: std::sync::Mutex::default(),
+        updates: std::sync::Arc::default(),
+        mode: std::sync::Arc::default(),
+        speed: std::sync::Arc::default(),
+        devices: std::sync::Arc::clone(&devices),
+        sensors: std::sync::Arc::default(),
+    });
+    let is_russian = system::windows::ui_language_is_russian();
+    tray::create(app.handle(), is_russian)?;
+    #[cfg(windows)]
+    settle_autostart(&data_dir.join(storage::DB_FILE));
+    if !is_autostart {
+        show_main_window(app.handle())?;
+    }
+    start_network_sampler(data_dir.clone(), devices);
+    #[cfg(windows)]
+    start_sensor_sampler(data_dir.clone());
+    start_collector(app.handle().clone(), data_dir, is_russian);
+    Ok(())
 }
 
 pub const STATUS_FLAG: &str = "--status";
@@ -213,6 +229,46 @@ fn print_status() -> ExitCode {
         ExitCode::SUCCESS
     } else {
         ExitCode::FAILURE
+    }
+}
+
+/// The first start of a release decides the start at sign-in once: on where the old OLEGPC collector lived, off
+/// elsewhere. A debug build decides nothing: it would point Windows at `target\debug`.
+#[cfg(windows)]
+fn settle_autostart(db_path: &Path) {
+    use startup::autostart;
+
+    if cfg!(debug_assertions) {
+        return;
+    }
+    let Ok(storage) = Storage::open(db_path) else {
+        return;
+    };
+    let is_decided = storage
+        .setting(autostart::DECIDED_KEY)
+        .ok()
+        .flatten()
+        .is_some();
+    if is_decided {
+        return;
+    }
+    if autostart::turns_on_at_first_start(is_decided, legacy_health_json().is_some()) {
+        let turned_on = std::env::current_exe()
+            .map_err(|error| error.to_string())
+            .and_then(|exe| {
+                startup::set_autostart(true, &exe, Utc::now().timestamp())
+                    .map_err(|error| error.to_string())
+            });
+        match turned_on {
+            Ok(()) => tracing::info!("autostart is on: the old OLEGPC collector lives here"),
+            Err(error) => {
+                tracing::warn!("autostart did not turn on: {error}");
+                return;
+            }
+        }
+    }
+    if let Err(error) = storage.set_setting(autostart::DECIDED_KEY, "1") {
+        tracing::warn!("the autostart decision was not kept: {error}");
     }
 }
 
