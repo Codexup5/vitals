@@ -26,9 +26,10 @@ mod updates;
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use chrono::{Local, Utc};
-use tauri::{AppHandle, Manager, WindowEvent};
+use tauri::{AppHandle, Manager, RunEvent};
 
 use crate::collector::Collector;
 use crate::storage::Storage;
@@ -56,14 +57,14 @@ pub fn run() -> ExitCode {
     if let Some(code) = run_without_panel(&args) {
         return code;
     }
-    // The start at sign-in stays in the tray: the window is created hidden and shown only by any other start
+    // The start at sign-in stays in the tray: it builds no window, any other start builds and shows it
     let is_autostart = args.iter().any(|arg| arg == startup::autostart::FLAG);
     // A second start shows the panel that runs and ends here
     #[cfg(windows)]
     let Some(instance) = instance::claim(!is_autostart) else {
         return ExitCode::SUCCESS;
     };
-    let result = tauri::Builder::default()
+    let built = tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             commands::log_ui_error,
             commands::health_overview,
@@ -120,30 +121,29 @@ pub fn run() -> ExitCode {
             }
             start_panel(app, is_autostart)
         })
-        .on_window_event(|window, event| {
-            // Closing the window keeps the panel in the tray; Quit in the tray menu ends it
-            if let WindowEvent::CloseRequested { api, .. } = event
-                && window.label() == MAIN_WINDOW
-            {
-                api.prevent_close();
-                if let Err(error) = window.hide() {
-                    tracing::error!("could not hide the window: {error}");
-                }
-            }
-        })
-        .run(tauri::generate_context!());
-
-    match result {
-        Ok(()) => ExitCode::SUCCESS,
+        .build(tauri::generate_context!());
+    let app = match built {
+        Ok(app) => app,
         Err(error) => {
-            tracing::error!("the panel stopped: {error}");
-            ExitCode::FAILURE
+            tracing::error!("the panel did not start: {error}");
+            return ExitCode::FAILURE;
         }
-    }
+    };
+    // Closing the window ends it and its WebView2, most of the panel's memory; the panel stays in the tray, and only
+    // Quit in the tray menu (an exit with a code) ends it
+    app.run(|_, event| {
+        if let RunEvent::ExitRequested {
+            code: None, api, ..
+        } = event
+        {
+            api.prevent_exit();
+        }
+    });
+    ExitCode::SUCCESS
 }
 
-/// The state of the commands, the tray, the samplers and the collector; the window shows unless the start is the one
-/// at sign-in.
+/// The state of the commands, the tray, the samplers and the collector; the window is built unless the start is the
+/// one at sign-in.
 fn start_panel(app: &tauri::App, is_autostart: bool) -> Result<(), Box<dyn std::error::Error>> {
     let data_dir = app_paths::ensure_data_dir()?;
     logging::init(&data_dir);
@@ -411,11 +411,48 @@ fn start_sensor_sampler(data_dir: PathBuf) {
     }
 }
 
+/// A build of the window is on its way: a second click waits for it rather than building another
+static IS_BUILDING: AtomicBool = AtomicBool::new(false);
+
+/// Shows the window, built again from the config when it was closed. Building waits for the main thread, so it runs
+/// on a thread of its own: a tray click arrives on the main thread, where that wait would never end (wry#583).
 pub(crate) fn show_main_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
-    let Some(window) = app.get_webview_window(MAIN_WINDOW) else {
+    if let Some(window) = app.get_webview_window(MAIN_WINDOW) {
+        window.unminimize()?;
+        window.show()?;
+        return window.set_focus();
+    }
+    if IS_BUILDING.swap(true, Ordering::SeqCst) {
         return Ok(());
-    };
-    window.unminimize()?;
-    window.show()?;
-    window.set_focus()
+    }
+    let app = app.clone();
+    let spawned = std::thread::Builder::new()
+        .name("window".to_owned())
+        .spawn(move || {
+            let built = app
+                .config()
+                .app
+                .windows
+                .iter()
+                .find(|config| config.label == MAIN_WINDOW)
+                .map(|config| {
+                    tauri::WebviewWindowBuilder::from_config(&app, config)
+                        .and_then(tauri::WebviewWindowBuilder::build)
+                });
+            IS_BUILDING.store(false, Ordering::SeqCst);
+            match built {
+                Some(Ok(window)) => {
+                    if let Err(error) = window.show().and_then(|()| window.set_focus()) {
+                        tracing::error!("could not show the window: {error}");
+                    }
+                }
+                Some(Err(error)) => tracing::error!("the window was not built: {error}"),
+                None => tracing::error!("the config has no {MAIN_WINDOW} window"),
+            }
+        });
+    if let Err(error) = spawned {
+        IS_BUILDING.store(false, Ordering::SeqCst);
+        return Err(error.into());
+    }
+    Ok(())
 }

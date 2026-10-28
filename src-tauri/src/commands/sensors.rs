@@ -9,8 +9,8 @@ use super::{AppState, CommandError, open};
 /// one starts it and waits for its first reading. Async: that wait stays off the main thread.
 #[tauri::command(async)]
 pub fn sensors_live(window: WebviewWindow, state: State<'_, AppState>) -> SensorsLive {
-    // A window hidden to the tray still polls: WebView2 keeps its page visible. It gets the last points, and the
-    // sampler stops after its idle time, so with the window closed only the five-minute sample runs
+    // A minimized or hidden window still polls: WebView2 keeps its page visible. It gets the last points, and the
+    // sampler stops after its idle time; a closed window is gone with its page, and only the five-minute sample runs
     let is_shown = window.is_visible().unwrap_or(true) && !window.is_minimized().unwrap_or(false);
     if is_shown {
         #[cfg(windows)]
