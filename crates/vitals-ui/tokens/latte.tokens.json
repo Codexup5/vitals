@@ -120,6 +120,20 @@
         "hex": "#6250d6"
       }
     },
+    "chart-cpu": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0.1647, 0.4706, 0.8392],
+        "hex": "#2a78d6"
+      }
+    },
+    "chart-gpu": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0.3843, 0.3137, 0.8392],
+        "hex": "#6250d6"
+      }
+    },
     "ok": {
       "$value": {
         "colorSpace": "srgb",

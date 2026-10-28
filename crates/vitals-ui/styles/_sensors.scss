@@ -1,0 +1,44 @@
+// The sensors screen: the two switches of the chart, the processor's and the card's lines, the readings side by side
+
+.switches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-5);
+}
+
+// The processor's line is solid and the card's dashed: told apart without colour too
+.line-cpu,
+.line-gpu {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.line-cpu {
+  stroke: var(--color-chart-cpu);
+}
+
+.line-gpu {
+  stroke: var(--color-chart-gpu);
+  stroke-dasharray: 6 4;
+}
+
+.line-cpu.dot {
+  fill: var(--color-chart-cpu);
+}
+
+.line-gpu.dot {
+  fill: var(--color-chart-gpu);
+}
+
+.readings {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: var(--space-4);
+  align-items: start;
+
+  th {
+    font-weight: normal;
+  }
+}

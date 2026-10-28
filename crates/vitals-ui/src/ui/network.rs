@@ -133,7 +133,7 @@ pub fn NetworkPage() -> impl IntoView {
 }
 
 /// A stretch of a line, or the dot of a measurement that stands alone.
-fn stretch_view(stretch: Stretch, class: &'static str) -> AnyView {
+pub(super) fn stretch_view(stretch: Stretch, class: &'static str) -> AnyView {
     match stretch {
         Stretch::Line(points) => view! { <polyline class=class points=points /> }.into_any(),
         Stretch::Dot { x, y } => {

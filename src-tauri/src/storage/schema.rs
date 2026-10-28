@@ -64,6 +64,15 @@ const MIGRATIONS: &[&str] = &[
        key TEXT PRIMARY KEY,
        value TEXT NOT NULL
      );",
+    "CREATE TABLE sensor_samples (
+       time INTEGER PRIMARY KEY,
+       cpu_load REAL,
+       cpu_mhz REAL,
+       ram_used REAL,
+       gpu_temp REAL,
+       gpu_load REAL,
+       gpu_power REAL
+     );",
 ];
 
 /// Moves the schema up one step at a time, each step under a write lock that reads the version again: the collector,

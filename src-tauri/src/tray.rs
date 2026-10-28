@@ -53,18 +53,22 @@ fn russian_days(count: i64) -> &'static str {
 pub fn status_line(
     summary: &HealthSummary,
     runners: Option<(u32, u32)>,
+    gpu_temp_c: Option<f64>,
     is_russian: bool,
 ) -> String {
-    let line = tooltip_text(summary, is_russian);
-    let Some((online, total)) = runners else {
-        return line;
-    };
-    let word = if is_russian {
-        "раннеры"
-    } else {
-        "runners"
-    };
-    format!("{line} · {word} {online}/{total}")
+    let mut parts = vec![tooltip_text(summary, is_russian)];
+    if let Some((online, total)) = runners {
+        let word = if is_russian {
+            "раннеры"
+        } else {
+            "runners"
+        };
+        parts.push(format!("{word} {online}/{total}"));
+    }
+    if let Some(temp) = gpu_temp_c {
+        parts.push(format!("GPU {temp:.0} °C"));
+    }
+    parts.join(" · ")
 }
 
 pub fn tooltip_text(summary: &HealthSummary, is_russian: bool) -> String {
@@ -152,5 +156,25 @@ mod tests {
             system_drive_free_gb: None,
         };
         assert_eq!(tooltip_text(&empty, true), "Vitals");
+    }
+
+    #[test]
+    fn the_status_line_adds_the_runners_and_the_card() {
+        let summary = HealthSummary {
+            days_without_crash: Some(1),
+            system_drive_free_gb: Some(233.9),
+        };
+        assert_eq!(
+            status_line(&summary, Some((5, 5)), Some(41.6), false),
+            "Vitals · 1 day without crashes · C: 233.9 GB free · runners 5/5 · GPU 42 °C"
+        );
+        assert_eq!(
+            status_line(&summary, None, Some(27.0), true),
+            "Vitals · 1 день без падений · C: 233,9 ГБ свободно · GPU 27 °C"
+        );
+        assert_eq!(
+            status_line(&summary, None, None, false),
+            tooltip_text(&summary, false)
+        );
     }
 }

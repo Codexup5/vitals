@@ -56,14 +56,19 @@ fn fixed_disks() -> Vec<(char, u64)> {
         .collect()
 }
 
-fn ram_free_bytes() -> Option<u64> {
+/// The physical memory and the part of it available, in bytes.
+pub fn memory_status() -> Option<(u64, u64)> {
     let mut status = MEMORYSTATUSEX {
         dwLength: u32::try_from(size_of::<MEMORYSTATUSEX>()).unwrap_or(0),
         ..MEMORYSTATUSEX::default()
     };
     // SAFETY: `status` is a live MEMORYSTATUSEX with dwLength set, as the call requires.
     unsafe { GlobalMemoryStatusEx(&raw mut status) }.ok()?;
-    Some(status.ullAvailPhys)
+    Some((status.ullTotalPhys, status.ullAvailPhys))
+}
+
+fn ram_free_bytes() -> Option<u64> {
+    memory_status().map(|(_, available)| available)
 }
 
 fn uptime_ms() -> u64 {

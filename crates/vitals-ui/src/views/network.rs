@@ -13,9 +13,9 @@ use crate::views::errors::nice_ceiling;
 
 pub const CHART_WIDTH: f64 = 720.0;
 pub const CHART_HEIGHT: f64 = 200.0;
-const LEFT: f64 = 48.0;
-const BOTTOM: f64 = 24.0;
-const TOP: f64 = 8.0;
+pub const LEFT: f64 = 48.0;
+pub const BOTTOM: f64 = 24.0;
+pub const TOP: f64 = 8.0;
 const DAY_SECONDS: i64 = 24 * 60 * 60;
 /// Two missed rounds of five minutes break a line: the panel was off or the PC slept
 const BREAK_SECONDS: i64 = 15 * 60;
@@ -217,6 +217,46 @@ fn clock(seconds: i64) -> String {
     format::local_time(seconds).map_or_else(String::new, |time| time.format("%H:%M").to_string())
 }
 
+/// The unbroken stretches of a line through `(time, value)` points, oldest first: a missing value or a gap longer
+/// than `break_seconds` breaks it, and a point that stands alone is a dot.
+pub fn stretches_of(
+    points: impl IntoIterator<Item = (i64, Option<f64>)>,
+    break_seconds: i64,
+    x_of: &impl Fn(i64) -> f64,
+    y_of: &impl Fn(f64) -> f64,
+) -> Vec<Stretch> {
+    let mut stretches: Vec<Vec<(f64, f64)>> = Vec::new();
+    let mut last_time: Option<i64> = None;
+    for (time, value) in points {
+        match value {
+            Some(value) => {
+                let is_continued = last_time.is_some_and(|last| time - last <= break_seconds);
+                if !is_continued {
+                    stretches.push(Vec::new());
+                }
+                if let Some(stretch) = stretches.last_mut() {
+                    stretch.push((x_of(time), y_of(value)));
+                }
+                last_time = Some(time);
+            }
+            None => last_time = None,
+        }
+    }
+    stretches
+        .into_iter()
+        .map(|stretch| match stretch.as_slice() {
+            [(x, y)] => Stretch::Dot { x: *x, y: *y },
+            points => Stretch::Line(
+                points
+                    .iter()
+                    .map(|(x, y)| format!("{x:.1},{y:.1}"))
+                    .collect::<Vec<_>>()
+                    .join(" "),
+            ),
+        })
+        .collect()
+}
+
 #[allow(
     clippy::cast_precision_loss,
     reason = "seconds within a day and milliseconds of a ping are far below f64's exact range"
@@ -251,37 +291,12 @@ pub fn latency_chart(samples: &[NetSample], now: i64, locale: Locale) -> Option<
     let x_of = |time: i64| LEFT + (time - from) as f64 / DAY_SECONDS as f64 * plot_width;
     let y_of = |value: f64| TOP + plot_height - value.min(scale) / scale * plot_height;
     let line = |value_of: &dyn Fn(&NetSample) -> Option<f64>| {
-        let mut stretches: Vec<Vec<(f64, f64)>> = Vec::new();
-        let mut last_time: Option<i64> = None;
-        for sample in &samples {
-            match value_of(sample) {
-                Some(value) => {
-                    let is_continued =
-                        last_time.is_some_and(|last| sample.time - last <= BREAK_SECONDS);
-                    if !is_continued {
-                        stretches.push(Vec::new());
-                    }
-                    if let Some(stretch) = stretches.last_mut() {
-                        stretch.push((x_of(sample.time), y_of(value)));
-                    }
-                    last_time = Some(sample.time);
-                }
-                None => last_time = None,
-            }
-        }
-        stretches
-            .into_iter()
-            .map(|stretch| match stretch.as_slice() {
-                [(x, y)] => Stretch::Dot { x: *x, y: *y },
-                points => Stretch::Line(
-                    points
-                        .iter()
-                        .map(|(x, y)| format!("{x:.1},{y:.1}"))
-                        .collect::<Vec<_>>()
-                        .join(" "),
-                ),
-            })
-            .collect()
+        stretches_of(
+            samples.iter().map(|sample| (sample.time, value_of(sample))),
+            BREAK_SECONDS,
+            &x_of,
+            &y_of,
+        )
     };
     let column = plot_width / (DAY_SECONDS as f64 / 300.0);
     let texts = &locale.texts().network;
