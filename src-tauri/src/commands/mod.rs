@@ -10,6 +10,7 @@ pub mod claude;
 pub mod disks;
 pub mod network;
 pub mod runners;
+pub mod sensors;
 pub mod startup;
 pub mod updates;
 
@@ -43,6 +44,8 @@ pub struct AppState {
     pub speed: Arc<crate::network::speed::SpeedJob>,
     /// The devices scan: the button and the hourly scan of the sampler share it
     pub devices: Arc<crate::network::devices::DevicesJob>,
+    /// The live readings of the sensors screen
+    pub sensors: Arc<crate::sensors::LiveSensors>,
 }
 
 #[derive(Debug, thiserror::Error)]

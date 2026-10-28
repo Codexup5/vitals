@@ -46,6 +46,8 @@ pub mod command {
     pub const ALERTS_SET_SENDING: &str = "alerts_set_sending";
     pub const CLAUDE_STATUS: &str = "claude_status";
     pub const CLAUDE_CONNECT: &str = "claude_connect";
+    pub const SENSORS_LIVE: &str = "sensors_live";
+    pub const SENSORS_HISTORY: &str = "sensors_history";
     pub const LOG_UI_ERROR: &str = "log_ui_error";
 }
 
@@ -1069,6 +1071,77 @@ pub enum ConnectOutcome {
     Done,
     NoCli,
     Failed,
+}
+
+/// The widest history of the sensors a command accepts: the core keeps a month.
+pub const MAX_SENSOR_HOURS: u32 = 30 * 24;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SensorsHistoryArgs {
+    pub hours: u32,
+}
+
+/// The processor as Windows' performance counters see it, over the interval since the reading before.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CpuReading {
+    pub name: Option<String>,
+    /// 0 to 100, the utilization Task Manager shows
+    pub load_pct: Option<f64>,
+    /// The effective clock: the base one times the performance the counters measured
+    pub mhz: Option<f64>,
+    pub base_mhz: Option<f64>,
+}
+
+/// A graphics card as `nvidia-smi` reads it; a value the card does not report is absent.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GpuReading {
+    pub name: String,
+    pub temp_c: Option<f64>,
+    pub load_pct: Option<f64>,
+    pub power_w: Option<f64>,
+    pub power_limit_w: Option<f64>,
+    pub fan_pct: Option<f64>,
+    pub core_mhz: Option<f64>,
+    pub memory_mhz: Option<f64>,
+    /// Mebibytes, as `nvidia-smi` counts them
+    pub vram_used_mb: Option<f64>,
+    pub vram_total_mb: Option<f64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SensorReading {
+    /// Unix seconds
+    pub time: i64,
+    pub cpu: CpuReading,
+    pub ram_used_bytes: Option<u64>,
+    pub ram_total_bytes: Option<u64>,
+    /// Empty without an NVIDIA card; the cards of other makers need `LibreHardwareMonitor`
+    pub gpus: Vec<GpuReading>,
+}
+
+/// A point of a sensors chart: one live reading, or one five-minute sample of the history. The card is the first one.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SensorPoint {
+    /// Unix seconds
+    pub time: i64,
+    pub cpu_load_pct: Option<f64>,
+    pub cpu_mhz: Option<f64>,
+    pub ram_used_pct: Option<f64>,
+    pub gpu_temp_c: Option<f64>,
+    pub gpu_load_pct: Option<f64>,
+    pub gpu_power_w: Option<f64>,
+}
+
+/// The live sensors: the latest reading and the points of the last ten minutes, oldest first.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SensorsLive {
+    pub reading: Option<SensorReading>,
+    pub points: Vec<SensorPoint>,
 }
 
 #[cfg(test)]

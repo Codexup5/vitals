@@ -3,6 +3,7 @@
 mod network;
 pub mod queries;
 mod schema;
+mod sensors;
 mod services;
 mod settings;
 

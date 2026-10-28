@@ -203,6 +203,30 @@
         }
       }
     },
+    "chart-cpu": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0.2235, 0.5294, 0.898],
+        "hex": "#3987e5"
+      },
+      "$extensions": {
+        "kit": {
+          "role": "ui"
+        }
+      }
+    },
+    "chart-gpu": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0.5647, 0.5216, 0.9137],
+        "hex": "#9085e9"
+      },
+      "$extensions": {
+        "kit": {
+          "role": "ui"
+        }
+      }
+    },
     "category-documents": {
       "$value": {
         "colorSpace": "srgb",

@@ -15,6 +15,7 @@ mod network;
 mod process;
 mod runners;
 mod scan;
+mod sensors;
 mod services;
 mod startup;
 mod storage;
@@ -98,7 +99,9 @@ pub fn run() -> ExitCode {
             commands::alerts::alerts_test,
             commands::alerts::alerts_set_sending,
             commands::claude::claude_status,
-            commands::claude::claude_connect
+            commands::claude::claude_connect,
+            commands::sensors::sensors_live,
+            commands::sensors::sensors_history
         ])
         .setup(move |app| {
             #[cfg(windows)]
@@ -122,10 +125,13 @@ pub fn run() -> ExitCode {
                 mode: std::sync::Arc::default(),
                 speed: std::sync::Arc::default(),
                 devices: std::sync::Arc::clone(&devices),
+                sensors: std::sync::Arc::default(),
             });
             let is_russian = system::windows::ui_language_is_russian();
             tray::create(app.handle(), is_russian)?;
             start_network_sampler(data_dir.clone(), devices);
+            #[cfg(windows)]
+            start_sensor_sampler(data_dir.clone());
             start_collector(app.handle().clone(), data_dir, is_russian);
             Ok(())
         })
@@ -152,8 +158,9 @@ pub fn run() -> ExitCode {
 }
 
 pub const STATUS_FLAG: &str = "--status";
-/// The runners the last check saw count only this long; Docker stopped, they are not said
-const RUNNERS_FRESH_SECONDS: i64 = 15 * 60;
+/// The runners of the last check and the last sample of the sensors count only this long: Docker stopped or the
+/// panel closed, they are not said
+const FRESH_SECONDS: i64 = 15 * 60;
 
 /// The database of the panel, without creating anything.
 fn panel_db() -> Option<PathBuf> {
@@ -173,7 +180,15 @@ fn fresh_runners(storage: &Storage, now: i64) -> Option<(u32, u32)> {
             .as_u64()
             .and_then(|value| u32::try_from(value).ok())
     };
-    (now - at <= RUNNERS_FRESH_SECONDS).then_some((count("online")?, count("total")?))
+    (now - at <= FRESH_SECONDS).then_some((count("online")?, count("total")?))
+}
+
+/// The temperature of the card in the last sample of the sensors, when it was recent.
+fn fresh_gpu_temp(storage: &Storage, now: i64) -> Option<f64> {
+    let point = storage.latest_sensor_sample().ok()??;
+    (now - point.time <= FRESH_SECONDS)
+        .then_some(point.gpu_temp_c)
+        .flatten()
 }
 
 /// `vitals.exe --status`: one line for the status line of Claude Code, from the database in milliseconds.
@@ -187,8 +202,13 @@ fn print_status() -> ExitCode {
     let Ok(summary) = collector::summary_from(&storage, Local::now().date_naive()) else {
         return ExitCode::FAILURE;
     };
-    let runners = fresh_runners(&storage, Utc::now().timestamp());
-    let line = tray::status_line(&summary, runners, system::windows::ui_language_is_russian());
+    let now = Utc::now().timestamp();
+    let line = tray::status_line(
+        &summary,
+        fresh_runners(&storage, now),
+        fresh_gpu_temp(&storage, now),
+        system::windows::ui_language_is_russian(),
+    );
     if writeln!(std::io::stdout(), "{line}").is_ok() {
         ExitCode::SUCCESS
     } else {
@@ -295,6 +315,43 @@ fn start_network_sampler(data_dir: PathBuf, devices: std::sync::Arc<network::dev
         });
     if let Err(error) = spawned {
         tracing::error!("the network sampler did not start: {error}");
+    }
+}
+
+/// Samples the sensors every five minutes for their history, as the collector counts events: the processor's
+/// counters stay open on this thread, so a sample's load is the mean of the five minutes before it.
+#[cfg(windows)]
+fn start_sensor_sampler(data_dir: PathBuf) {
+    let spawned = std::thread::Builder::new()
+        .name("sensors".to_owned())
+        .spawn(move || {
+            let storage = match Storage::open(&data_dir.join(storage::DB_FILE)) {
+                Ok(storage) => storage,
+                Err(error) => {
+                    tracing::error!(
+                        "the database did not open, the sensors sampler is off: {error}"
+                    );
+                    return;
+                }
+            };
+            let reader = sensors::windows::Reader::open();
+            std::thread::sleep(sensors::FIRST_INTERVAL);
+            loop {
+                let now = Utc::now().timestamp();
+                let point = sensors::point_of(&reader.read(now));
+                if let Err(error) = storage.put_sensor_sample(&point) {
+                    tracing::warn!("the sensors sample was not saved: {error}");
+                }
+                if let Err(error) =
+                    storage.prune_sensor_samples(now - sensors::KEEP_DAYS * 24 * 60 * 60)
+                {
+                    tracing::warn!("old sensors samples were not pruned: {error}");
+                }
+                std::thread::sleep(collector::INTERVAL);
+            }
+        });
+    if let Err(error) = spawned {
+        tracing::error!("the sensors sampler did not start: {error}");
     }
 }
 
