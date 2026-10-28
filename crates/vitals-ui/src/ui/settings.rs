@@ -1,11 +1,11 @@
-//! The settings screen: the Telegram bot (saved sealed by the core, never shown back), a test message, sending on or
-//! off, and the records of the recent checks for the week next to the old alerts.
+//! The settings screen: the start at sign-in, the Telegram bot (saved sealed by the core, never shown back), a test
+//! message, sending on or off, the records of the recent checks for the week next to the old alerts, and Claude Code.
 
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use vitals_ipc::{
-    AlertsSaveBotArgs, AlertsSetSendingArgs, AlertsStatus, ClaudeStatus, ConnectOutcome,
-    TestOutcome, command,
+    AlertsSaveBotArgs, AlertsSetSendingArgs, AlertsStatus, AutostartSetArgs, AutostartStatus,
+    ClaudeStatus, ConnectOutcome, TestOutcome, command,
 };
 
 use super::widgets::{Eyebrow, Failure, Tag};
@@ -14,7 +14,7 @@ use crate::ipc::{self, IpcError};
 use crate::preferences::PreferencesStore;
 use crate::views::disks::Tone;
 use crate::views::settings::{
-    AlertsReady, AlertsView, alerts_view, claude_view, connect_line, test_line,
+    AlertsReady, AlertsView, alerts_view, autostart_view, claude_view, connect_line, test_line,
 };
 
 type Answer<T> = LocalResource<Result<T, IpcError>>;
@@ -50,6 +50,7 @@ pub fn SettingsPage() -> impl IntoView {
                     <h1>{move || locale().texts().settings.title}</h1>
                 </div>
             </header>
+            <Autostart locale=Signal::derive(locale) />
             <section class="section" aria-labelledby="alerts-title">
                 <h2 id="alerts-title">{move || locale().texts().settings.alerts_title}</h2>
                 {move || match view_model() {
@@ -65,6 +66,70 @@ pub fn SettingsPage() -> impl IntoView {
             </section>
             <Claude locale=Signal::derive(locale) />
         </main>
+    }
+}
+
+#[component]
+fn Autostart(locale: Signal<Locale>) -> impl IntoView {
+    let texts = move || &locale.get().texts().settings;
+    let status = LocalResource::new(|| async {
+        ipc::call::<AutostartStatus, _>(command::AUTOSTART_STATUS, &()).await
+    });
+    // The answer of a change replaces the status shown; a failure is said under the block
+    let changed = RwSignal::new(None::<AutostartStatus>);
+    let has_failed = RwSignal::new(false);
+    let is_busy = RwSignal::new(false);
+    let change = move |enable: bool| {
+        is_busy.set(true);
+        has_failed.set(false);
+        spawn_local(async move {
+            let answer: Result<AutostartStatus, IpcError> =
+                ipc::call(command::AUTOSTART_SET, &AutostartSetArgs { enable }).await;
+            let is_ok = answer.is_ok();
+            if changed.try_set(answer.ok()).is_none() {
+                has_failed.set(!is_ok);
+                is_busy.set(false);
+            }
+        });
+    };
+    view! {
+        <section class="section" aria-labelledby="autostart-title">
+            <h2 id="autostart-title">{move || texts().autostart_title}</h2>
+            <p class="muted">{move || texts().autostart_hint}</p>
+            {move || match changed.get().map(Ok).or_else(|| status.get()) {
+                None => view! { <div class="skeleton" aria-busy="true"></div> }.into_any(),
+                Some(Err(error)) => {
+                    view! { <Failure message=error.text(locale.get()) retry=locale.get().texts().common.retry on_retry=move || status.refetch() /> }
+                        .into_any()
+                }
+                Some(Ok(answer)) => {
+                    let ready = autostart_view(&answer, locale.get());
+                    let enable = ready.enable;
+                    view! {
+                        <div class="card settings-card">
+                            <div class="row-main">
+                                <Tag tone=ready.state.1>{ready.state.0}</Tag>
+                                <button
+                                    type="button"
+                                    disabled=move || is_busy.get()
+                                    aria-busy=move || is_busy.get().to_string()
+                                    on:click=move |_| change(enable)
+                                >
+                                    {ready.button}
+                                </button>
+                            </div>
+                            {ready.other_copy.map(|line| view! { <p class="muted wrap">{line}</p> })}
+                        </div>
+                    }
+                        .into_any()
+                }
+            }}
+            {move || {
+                has_failed
+                    .get()
+                    .then(|| view! { <p role="alert" class="mode-line" data-tone="danger">{texts().autostart_failed}</p> })
+            }}
+        </section>
     }
 }
 

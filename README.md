@@ -18,7 +18,7 @@ WebAssembly), no account, no telemetry: everything stays on your PC, in `%APPDAT
 | Network              | Latency, loss and jitter to the router and to the internet every 5 minutes; the link speed; a speed test on its button; the devices on the network      |
 | Startup and services | Programs that start at sign-in with their cost, publisher and signature; third-party services. Off with a one-click way back; Microsoft's are view only |
 | Sensors              | CPU load and clock, memory, NVIDIA cards through `nvidia-smi`; a live chart and a month of history                                                      |
-| Settings             | Telegram alerts through your own bot (off by default); Claude Code                                                                                      |
+| Settings             | The start with Windows, in the tray (off by default); Telegram alerts through your own bot (off by default); Claude Code                                |
 
 The window is in Russian or English, by the language of Windows, with a dark (Catppuccin Mocha) and a light (Latte)
 theme. Closed, it stays in the tray, and only the light collection runs, every 5 minutes.

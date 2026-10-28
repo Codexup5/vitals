@@ -1,6 +1,10 @@
-//! The settings screen: the Telegram bot, sending on or off, and what the recent checks found.
+//! The settings screen: the start at sign-in, the Telegram bot, sending on or off, what the recent checks found, and
+//! Claude Code.
 
-use vitals_ipc::{AlertRecord, AlertSkip, AlertsStatus, ClaudeStatus, ConnectOutcome, TestOutcome};
+use vitals_ipc::{
+    AlertRecord, AlertSkip, AlertsStatus, AutostartStatus, ClaudeStatus, ConnectOutcome,
+    TestOutcome,
+};
 
 use crate::format;
 use crate::i18n::Locale;
@@ -95,6 +99,40 @@ pub fn alerts_view(
             })
             .collect(),
     })
+}
+
+/// The start at sign-in: its state, the copy it starts when not this one, and the button with what it does.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AutostartReady {
+    pub state: Badge,
+    pub other_copy: Option<String>,
+    pub button: &'static str,
+    /// What the button asks: on (for this copy) or off
+    pub enable: bool,
+}
+
+pub fn autostart_view(status: &AutostartStatus, locale: Locale) -> AutostartReady {
+    let texts = &locale.texts().settings;
+    match (&status.other_copy, status.is_enabled) {
+        (Some(path), true) => AutostartReady {
+            state: (texts.autostart_on, Tone::Warn),
+            other_copy: Some((texts.autostart_other)(path)),
+            button: texts.autostart_this_copy,
+            enable: true,
+        },
+        (_, true) => AutostartReady {
+            state: (texts.autostart_on, Tone::Ok),
+            other_copy: None,
+            button: texts.autostart_turn_off,
+            enable: false,
+        },
+        (_, false) => AutostartReady {
+            state: (texts.autostart_off, Tone::Accent),
+            other_copy: None,
+            button: texts.autostart_turn_on,
+            enable: true,
+        },
+    }
 }
 
 /// The Claude Code block: whether the server is connected, the button, the status line command.
@@ -214,6 +252,37 @@ mod tests {
         let ready = claude_view(&status, Locale::Ru);
         assert_eq!(ready.button, Some("Подключить заново"));
         assert_eq!(ready.state.1, Tone::Ok);
+    }
+
+    #[test]
+    fn the_start_at_sign_in_offers_the_other_way_or_this_copy() {
+        let mut status = AutostartStatus {
+            is_enabled: false,
+            other_copy: None,
+        };
+        let off = autostart_view(&status, Locale::En);
+        assert_eq!(
+            (off.state, off.button, off.enable),
+            (
+                ("Does not start at sign-in", Tone::Accent),
+                "Start at sign-in",
+                true
+            )
+        );
+        status.is_enabled = true;
+        let on = autostart_view(&status, Locale::En);
+        assert_eq!((on.button, on.enable), ("Do not start at sign-in", false));
+        status.other_copy = Some(r"C:\Old\vitals.exe".to_owned());
+        let other = autostart_view(&status, Locale::En);
+        assert_eq!(
+            (other.state.1, other.button, other.enable),
+            (Tone::Warn, "Start this copy", true)
+        );
+        assert!(
+            other
+                .other_copy
+                .is_some_and(|line| line.ends_with(r"C:\Old\vitals.exe"))
+        );
     }
 
     #[test]

@@ -48,6 +48,8 @@ pub mod command {
     pub const CLAUDE_CONNECT: &str = "claude_connect";
     pub const SENSORS_LIVE: &str = "sensors_live";
     pub const SENSORS_HISTORY: &str = "sensors_history";
+    pub const AUTOSTART_STATUS: &str = "autostart_status";
+    pub const AUTOSTART_SET: &str = "autostart_set";
     pub const LOG_UI_ERROR: &str = "log_ui_error";
 }
 
@@ -1071,6 +1073,20 @@ pub enum ConnectOutcome {
     Done,
     NoCli,
     Failed,
+}
+
+/// Whether the panel starts at sign-in: its value under this user's Run key, and the mark Task Manager keeps for it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutostartStatus {
+    pub is_enabled: bool,
+    /// The exe the value starts when it is not this one: an older copy, moved or installed elsewhere
+    pub other_copy: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AutostartSetArgs {
+    pub enable: bool,
 }
 
 /// The widest history of the sensors a command accepts: the core keeps a month.

@@ -3,6 +3,7 @@
 //! value stay, and turning it on again is one click (the brief, §1 p.15). An entry of every user needs admin rights,
 //! so it changes through `vitals.exe --elevated`; a part of Windows is shown and never turned off.
 
+pub mod autostart;
 pub mod elevated;
 mod impact;
 mod shortcut;
@@ -280,6 +281,9 @@ pub fn apply(change: &StartupSetArgs, now: i64) -> Result<(), StartupError> {
 pub fn apply(_: &StartupSetArgs, _: i64) -> Result<(), StartupError> {
     Err(StartupError::Registry("only on Windows".to_owned()))
 }
+
+#[cfg(windows)]
+pub use windows::{autostart_status, set_autostart};
 
 /// Turns an entry on or off; one of every user goes through UAC, where a "No" changes nothing.
 pub fn set_enabled(

@@ -26,6 +26,7 @@
         "minWidth": 720,
         "minHeight": 520,
         "center": true,
+        "visible": false,
         "zoomHotkeysEnabled": true
       }
     ],

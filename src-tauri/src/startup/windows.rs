@@ -7,18 +7,18 @@
 
 use std::path::Path;
 
-use vitals_ipc::{StartupOverview, StartupSetArgs, StartupSource};
-use windows::Win32::Foundation::ERROR_SUCCESS;
+use vitals_ipc::{AutostartStatus, StartupOverview, StartupSetArgs, StartupSource};
+use windows::Win32::Foundation::{ERROR_FILE_NOT_FOUND, ERROR_SUCCESS};
 use windows::Win32::System::Registry::{
     HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_QUERY_VALUE, KEY_READ, KEY_SET_VALUE,
     KEY_WOW64_32KEY, KEY_WOW64_64KEY, REG_BINARY, REG_EXPAND_SZ, REG_OPTION_NON_VOLATILE,
     REG_SAM_FLAGS, REG_SZ, RRF_NOEXPAND, RRF_RT_REG_BINARY, RRF_RT_REG_EXPAND_SZ, RRF_RT_REG_SZ,
-    RegCloseKey, RegCreateKeyExW, RegEnumKeyExW, RegEnumValueW, RegGetValueW, RegOpenKeyExW,
-    RegSetValueExW,
+    RegCloseKey, RegCreateKeyExW, RegDeleteValueW, RegEnumKeyExW, RegEnumValueW, RegGetValueW,
+    RegOpenKeyExW, RegSetValueExW,
 };
 use windows::core::{HSTRING, PWSTR};
 
-use super::{Facts, Listed, StartupError, Trace, impact};
+use super::{Facts, Listed, StartupError, Trace, autostart, impact};
 use crate::trust;
 
 const RUN: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
@@ -162,6 +162,35 @@ impl Key {
             Ok(())
         } else {
             Err(StartupError::Registry(format!("{value}: {}", written.0)))
+        }
+    }
+}
+
+impl Key {
+    fn set_string(&self, value: &str, text: &str) -> Result<(), StartupError> {
+        let bytes: Vec<u8> = text
+            .encode_utf16()
+            .chain(std::iter::once(0))
+            .flat_map(u16::to_le_bytes)
+            .collect();
+        // SAFETY: the key is open for writing and `bytes`, a terminated UTF-16 string, outlives the call.
+        let written =
+            unsafe { RegSetValueExW(self.0, &HSTRING::from(value), None, REG_SZ, Some(&bytes)) };
+        if written == ERROR_SUCCESS {
+            Ok(())
+        } else {
+            Err(StartupError::Registry(format!("{value}: {}", written.0)))
+        }
+    }
+
+    /// Removes a value; one that is not there is already removed.
+    fn delete_value(&self, value: &str) -> Result<(), StartupError> {
+        // SAFETY: the key is open for writing and the name is a live null-terminated string.
+        let deleted = unsafe { RegDeleteValueW(self.0, &HSTRING::from(value)) };
+        if deleted == ERROR_SUCCESS || deleted == ERROR_FILE_NOT_FOUND {
+            Ok(())
+        } else {
+            Err(StartupError::Registry(format!("{value}: {}", deleted.0)))
         }
     }
 }
@@ -326,4 +355,36 @@ pub fn apply(change: &StartupSetArgs, now: i64) -> Result<(), StartupError> {
         KEY_SET_VALUE | KEY_QUERY_VALUE | KEY_WOW64_64KEY,
     )?;
     key.set_binary(&change.name, &super::approved_mark(change.enable, now))
+}
+
+/// Whether this user's Run key starts the panel at sign-in, and which copy of it.
+pub fn autostart_status(exe: &Path) -> AutostartStatus {
+    let command = Key::open(HKEY_CURRENT_USER, RUN, KEY_READ).and_then(|key| {
+        key.strings()
+            .into_iter()
+            .find(|(name, _)| name.eq_ignore_ascii_case(autostart::VALUE))
+            .map(|(_, command)| command)
+    });
+    let mark = approved(StartupSource::UserRun, autostart::VALUE);
+    autostart::status_of(command.as_deref(), mark.as_deref(), exe)
+}
+
+/// On: the value starts this exe, and Task Manager's mark says on. Off: both go, as an uninstall leaves the key.
+pub fn set_autostart(enable: bool, exe: &Path, now: i64) -> Result<(), StartupError> {
+    let run = Key::create(HKEY_CURRENT_USER, RUN, KEY_SET_VALUE)?;
+    let approved = Key::create(
+        HKEY_CURRENT_USER,
+        &format!(
+            r"{APPROVED}\{}",
+            super::approved_key(StartupSource::UserRun)
+        ),
+        KEY_SET_VALUE | KEY_QUERY_VALUE | KEY_WOW64_64KEY,
+    )?;
+    if enable {
+        run.set_string(autostart::VALUE, &autostart::command_of(exe))?;
+        approved.set_binary(autostart::VALUE, &super::approved_mark(true, now))
+    } else {
+        run.delete_value(autostart::VALUE)?;
+        approved.delete_value(autostart::VALUE)
+    }
 }
