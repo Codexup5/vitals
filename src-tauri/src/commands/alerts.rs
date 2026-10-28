@@ -42,6 +42,10 @@ pub fn alerts_status(state: State<'_, AppState>) -> Result<AlertsStatus, Command
         chat_hint: bot.as_ref().map(telegram::Bot::chat_hint),
         is_sending: alerts::is_sending(&storage)?,
         has_legacy_bot: telegram::legacy_env().is_some(),
+        #[cfg(windows)]
+        old_tasks_on: crate::legacy::tasks_on(),
+        #[cfg(not(windows))]
+        old_tasks_on: Vec::new(),
         disk_min_gb: alerts::DISK_MIN_GB,
         runner_grace_minutes: alerts::RUNNER_GRACE_MINUTES,
         last_check,

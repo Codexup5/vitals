@@ -366,7 +366,14 @@ fn Alerts(
                     {ready.sending_button}
                 </button>
             </div>
-            <p class="muted">{move || texts().week_hint}</p>
+            {ready
+                .old_tasks
+                .map(|(hint, commands)| {
+                    view! {
+                        <p role="note" class="mode-line" data-tone="warn">{hint}</p>
+                        {commands.into_iter().map(|command| view! { <p class="mono wrap">{command}</p> }).collect_view()}
+                    }
+                })}
         </div>
         <h3>{move || texts().recent_title}</h3>
         <p class="muted">{ready.last_check}</p>
