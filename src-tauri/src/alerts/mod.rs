@@ -28,6 +28,8 @@ const LOG_FILE: &str = "alerts-log.jsonl";
 const RECENT: usize = 20;
 const STATE_KEY: &str = "alerts.state";
 pub const SENDING_KEY: &str = "alerts.sending";
+/// The runners as the last check saw them, for the status line: `{"online":3,"total":4,"at":…}`
+pub const RUNNERS_KEY: &str = "status.runners";
 
 #[derive(Debug, thiserror::Error)]
 pub enum AlertsError {
@@ -245,7 +247,12 @@ fn check_once(
         .find(|(letter, _)| *letter == 'C')
         .map(|(_, free)| crate::system::round1(gigabytes(*free)));
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
-    let (alerts, next) = evaluate(&state, &found, free_c_gb, &watch_runners(), now, &today);
+    let (runners, counted) = watch_runners();
+    if let Some((online, total)) = counted {
+        let seen = serde_json::json!({ "online": online, "total": total, "at": now });
+        storage.set_setting(RUNNERS_KEY, &seen.to_string())?;
+    }
+    let (alerts, next) = evaluate(&state, &found, free_c_gb, &runners, now, &today);
     storage.set_setting(STATE_KEY, &serde_json::to_string(&next)?)?;
     if alerts.is_empty() {
         return Ok(());
@@ -281,9 +288,9 @@ pub fn computer_name() -> String {
     std::env::var("COMPUTERNAME").unwrap_or_else(|_| "Vitals".to_owned())
 }
 
-/// The runners are watched only while Docker Desktop runs, as the old alerts did.
+/// The runners are watched only while Docker Desktop runs, as the old alerts did; with them, how many are online.
 #[cfg(windows)]
-fn watch_runners() -> Runners {
+fn watch_runners() -> (Runners, Option<(u32, u32)>) {
     use vitals_ipc::{GithubAccess, RunnerStatus};
 
     let is_docker_running = crate::system::windows::running_exes().iter().any(|exe| {
@@ -291,11 +298,11 @@ fn watch_runners() -> Runners {
             .is_some_and(|name| name.eq_ignore_ascii_case("Docker Desktop.exe"))
     });
     if !is_docker_running {
-        return Runners::DockerOff;
+        return (Runners::DockerOff, None);
     }
     let overview = crate::runners::source::overview();
     if overview.github != GithubAccess::Ok {
-        return Runners::Unknown;
+        return (Runners::Unknown, None);
     }
     let offline: Vec<String> = overview
         .runners
@@ -303,11 +310,14 @@ fn watch_runners() -> Runners {
         .filter(|runner| runner.status == Some(RunnerStatus::Offline))
         .map(|runner| runner.name.clone())
         .collect();
-    if offline.is_empty() {
+    let total = u32::try_from(overview.runners.len()).unwrap_or(u32::MAX);
+    let online = total.saturating_sub(u32::try_from(offline.len()).unwrap_or(u32::MAX));
+    let runners = if offline.is_empty() {
         Runners::Online
     } else {
         Runners::Offline(offline)
-    }
+    };
+    (runners, Some((online, total)))
 }
 
 #[cfg(test)]

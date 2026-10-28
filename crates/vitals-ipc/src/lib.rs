@@ -44,6 +44,8 @@ pub mod command {
     pub const ALERTS_FORGET_BOT: &str = "alerts_forget_bot";
     pub const ALERTS_TEST: &str = "alerts_test";
     pub const ALERTS_SET_SENDING: &str = "alerts_set_sending";
+    pub const CLAUDE_STATUS: &str = "claude_status";
+    pub const CLAUDE_CONNECT: &str = "claude_connect";
     pub const LOG_UI_ERROR: &str = "log_ui_error";
 }
 
@@ -1047,6 +1049,26 @@ pub enum TestOutcome {
     Refused,
     /// Telegram did not answer: no network, or curl is missing
     Unreachable,
+}
+
+/// Whether Claude Code is here and reads this panel's MCP server.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClaudeStatus {
+    /// `claude` was found on this PC
+    pub has_cli: bool,
+    /// `pc-health` is in the user's MCP servers of Claude Code
+    pub is_connected: bool,
+    /// What a status line script runs for the line of Vitals
+    pub status_command: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ConnectOutcome {
+    Done,
+    NoCli,
+    Failed,
 }
 
 #[cfg(test)]

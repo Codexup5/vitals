@@ -49,6 +49,24 @@ fn russian_days(count: i64) -> &'static str {
 }
 
 /// "Vitals · 14 дней без падений · C: 207.6 ГБ свободно"; a part with no data yet is left out.
+/// The line of `vitals.exe --status` for the status line of Claude Code: the tooltip and, when known, the runners.
+pub fn status_line(
+    summary: &HealthSummary,
+    runners: Option<(u32, u32)>,
+    is_russian: bool,
+) -> String {
+    let line = tooltip_text(summary, is_russian);
+    let Some((online, total)) = runners else {
+        return line;
+    };
+    let word = if is_russian {
+        "раннеры"
+    } else {
+        "runners"
+    };
+    format!("{line} · {word} {online}/{total}")
+}
+
 pub fn tooltip_text(summary: &HealthSummary, is_russian: bool) -> String {
     let mut parts = vec!["Vitals".to_owned()];
     if let Some(days) = summary.days_without_crash {

@@ -1,6 +1,6 @@
 //! The settings screen: the Telegram bot, sending on or off, and what the recent checks found.
 
-use vitals_ipc::{AlertRecord, AlertSkip, AlertsStatus, TestOutcome};
+use vitals_ipc::{AlertRecord, AlertSkip, AlertsStatus, ClaudeStatus, ConnectOutcome, TestOutcome};
 
 use crate::format;
 use crate::i18n::Locale;
@@ -97,6 +97,42 @@ pub fn alerts_view(
     })
 }
 
+/// The Claude Code block: whether the server is connected, the button, the status line command.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClaudeReady {
+    pub state: Badge,
+    /// None without Claude Code on the PC
+    pub button: Option<&'static str>,
+    pub status_command: String,
+}
+
+pub fn claude_view(status: &ClaudeStatus, locale: Locale) -> ClaudeReady {
+    let texts = &locale.texts().settings;
+    let state = match (status.has_cli, status.is_connected) {
+        (_, true) => (texts.claude_connected, Tone::Ok),
+        (true, false) => (texts.claude_not_connected, Tone::Accent),
+        (false, false) => (texts.claude_no_cli, Tone::Warn),
+    };
+    ClaudeReady {
+        state,
+        button: status.has_cli.then_some(if status.is_connected {
+            texts.reconnect
+        } else {
+            texts.connect
+        }),
+        status_command: status.status_command.clone(),
+    }
+}
+
+pub fn connect_line(outcome: ConnectOutcome, locale: Locale) -> (&'static str, Tone) {
+    let texts = &locale.texts().settings;
+    match outcome {
+        ConnectOutcome::Done => (texts.connect_done, Tone::Ok),
+        ConnectOutcome::NoCli => (texts.claude_no_cli, Tone::Warn),
+        ConnectOutcome::Failed => (texts.connect_failed, Tone::Danger),
+    }
+}
+
 /// What the screen says after the test button.
 pub fn test_line(outcome: TestOutcome, locale: Locale) -> (&'static str, Tone) {
     let texts = &locale.texts().settings;
@@ -159,6 +195,25 @@ mod tests {
         assert!(!ready.offers_legacy);
         assert!(ready.bot_line.contains("чат …7890"));
         assert_eq!(ready.sending, ("Отправка включена", Tone::Ok));
+    }
+
+    #[test]
+    fn claude_is_offered_only_where_it_is() {
+        let mut status = ClaudeStatus {
+            has_cli: false,
+            is_connected: false,
+            status_command: r#""C:\Vitals\vitals.exe" --status"#.to_owned(),
+        };
+        assert_eq!(claude_view(&status, Locale::Ru).button, None);
+        status.has_cli = true;
+        assert_eq!(
+            claude_view(&status, Locale::Ru).button,
+            Some("Подключить к Claude Code")
+        );
+        status.is_connected = true;
+        let ready = claude_view(&status, Locale::Ru);
+        assert_eq!(ready.button, Some("Подключить заново"));
+        assert_eq!(ready.state.1, Tone::Ok);
     }
 
     #[test]
