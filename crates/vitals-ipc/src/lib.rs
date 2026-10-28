@@ -1022,6 +1022,8 @@ pub struct AlertsStatus {
     pub is_sending: bool,
     /// `~/.olegpc/telegram.env` of the old alerts is there to take the bot from
     pub has_legacy_bot: bool,
+    /// The old OLEGPC tasks Vitals took over that are still on, `OLEGPC\Alerts` and the like
+    pub old_tasks_on: Vec<String>,
     pub disk_min_gb: u32,
     pub runner_grace_minutes: u32,
     /// Unix seconds of the last check

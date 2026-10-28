@@ -31,6 +31,8 @@ pub struct AlertsReady {
     pub sending_button: &'static str,
     pub last_check: String,
     pub recent: Vec<RecordRow>,
+    /// The old OLEGPC tasks still on: what to say, and the commands that turn them off
+    pub old_tasks: Option<(String, Vec<String>)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -98,6 +100,16 @@ pub fn alerts_view(
                 outcome: outcome_of(record, locale),
             })
             .collect(),
+        old_tasks: (!status.old_tasks_on.is_empty()).then(|| {
+            (
+                (texts.old_tasks_on)(&status.old_tasks_on.join(", ")),
+                status
+                    .old_tasks_on
+                    .iter()
+                    .map(|task| format!(r#"schtasks /Change /TN "\{task}" /DISABLE"#))
+                    .collect(),
+            )
+        }),
     })
 }
 
@@ -192,6 +204,7 @@ mod tests {
             chat_hint: None,
             is_sending: false,
             has_legacy_bot: true,
+            old_tasks_on: Vec::new(),
             disk_min_gb: 50,
             runner_grace_minutes: 30,
             last_check: None,
@@ -233,6 +246,25 @@ mod tests {
         assert!(!ready.offers_legacy);
         assert!(ready.bot_line.contains("чат …7890"));
         assert_eq!(ready.sending, ("Отправка включена", Tone::Ok));
+    }
+
+    #[test]
+    fn the_old_tasks_are_named_only_while_they_are_on() {
+        assert_eq!(ready(&status()).old_tasks, None);
+        let mut old = status();
+        old.old_tasks_on = vec![
+            r"OLEGPC\Health collect".to_owned(),
+            r"OLEGPC\Alerts".to_owned(),
+        ];
+        let (hint, commands) = ready(&old).old_tasks.unwrap();
+        assert!(hint.contains(r"OLEGPC\Health collect, OLEGPC\Alerts"));
+        assert_eq!(
+            commands,
+            [
+                r#"schtasks /Change /TN "\OLEGPC\Health collect" /DISABLE"#,
+                r#"schtasks /Change /TN "\OLEGPC\Alerts" /DISABLE"#
+            ]
+        );
     }
 
     #[test]

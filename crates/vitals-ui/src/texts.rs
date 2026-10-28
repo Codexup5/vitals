@@ -517,7 +517,7 @@ pub struct SettingsPage {
     pub sending_off: &'static str,
     pub turn_on_sending: &'static str,
     pub turn_off_sending: &'static str,
-    pub week_hint: &'static str,
+    pub old_tasks_on: fn(&str) -> String,
     pub recent_title: &'static str,
     pub recent_empty: &'static str,
     pub last_check: fn(&str) -> String,
@@ -1121,7 +1121,11 @@ pub static RU: Texts = Texts {
         sending_off: "Отправка выключена: панель только записывает, что отправила бы",
         turn_on_sending: "Включить отправку",
         turn_off_sending: "Выключить отправку",
-        week_hint: "Пока работает старая задача OLEGPC\\Alerts, держите отправку выключенной: неделю сверяем записи ниже с её сообщениями, потом старая задача выключается, а эта включается.",
+        old_tasks_on: |tasks| {
+            format!(
+                "Старые задачи ещё включены: {tasks}. Vitals уже делает их работу, а пока включена OLEGPC\\Alerts, оповещения приходят дважды. Выключите их командами ниже — задачи останутся в планировщике, и их можно включить обратно."
+            )
+        },
         recent_title: "Что нашли последние проверки",
         recent_empty: "Проверки пока ничего не нашли.",
         last_check: |time| format!("Последняя проверка: {time}"),
@@ -1717,7 +1721,11 @@ pub static EN: Texts = Texts {
         sending_off: "Sending is off: the panel only writes what it would send",
         turn_on_sending: "Turn sending on",
         turn_off_sending: "Turn sending off",
-        week_hint: "While the old OLEGPC\\Alerts task runs, keep sending off: for a week the records below are compared with its messages, then the old task goes off and this one on.",
+        old_tasks_on: |tasks| {
+            format!(
+                "The old tasks are still on: {tasks}. Vitals does their work now, and while OLEGPC\\Alerts is on, every alert comes twice. Turn them off with the commands below: the tasks stay in the Task Scheduler and can be turned on again."
+            )
+        },
         recent_title: "What the recent checks found",
         recent_empty: "The checks found nothing yet.",
         last_check: |time| format!("Last check: {time}"),

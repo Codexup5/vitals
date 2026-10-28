@@ -9,6 +9,7 @@ mod elevated;
 mod events;
 mod import;
 mod instance;
+mod legacy;
 mod logging;
 mod mcp;
 mod network;
