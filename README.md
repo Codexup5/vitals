@@ -4,8 +4,14 @@ A local health panel for a Windows PC: crashes and errors, disks and safe cleanu
 startup and services, sensors. One small exe written in Rust (Tauri 2, the interface in Leptos compiled to
 WebAssembly), no account, no telemetry: everything stays on your PC, in `%APPDATA%\Vitals`.
 
-> Status: every module of v1 works, the CPU temperature and the fans too once you run LibreHardwareMonitor. Next: the
-> first release, v0.1. Until then, build it from source (below).
+> Status: v0.1, the first release: every module of v1 works, the CPU temperature and the fans too once you run
+> LibreHardwareMonitor.
+
+## Install
+
+Download `Vitals_0.1.0_x64-setup.exe` from [Releases](https://github.com/Codexup5/vitals/releases) and run it: it
+installs for your user, without admin rights. The exe is not code-signed yet, so Windows SmartScreen says the publisher
+is unknown: "More info" → "Run anyway". Checked on Windows 11 only.
 
 ## What it shows
 
