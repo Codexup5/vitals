@@ -31,6 +31,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use chrono::{Local, Utc};
 use tauri::{AppHandle, Manager, RunEvent};
+use vitals_ipc::SensorPoint;
 
 use crate::collector::Collector;
 use crate::storage::Storage;
@@ -200,12 +201,10 @@ fn fresh_runners(storage: &Storage, now: i64) -> Option<(u32, u32)> {
     (now - at <= FRESH_SECONDS).then_some((count("online")?, count("total")?))
 }
 
-/// The temperature of the card in the last sample of the sensors, when it was recent.
-fn fresh_gpu_temp(storage: &Storage, now: i64) -> Option<f64> {
+/// The last sample of the sensors, when it was recent.
+fn fresh_sensor_sample(storage: &Storage, now: i64) -> Option<SensorPoint> {
     let point = storage.latest_sensor_sample().ok()??;
-    (now - point.time <= FRESH_SECONDS)
-        .then_some(point.gpu_temp_c)
-        .flatten()
+    (now - point.time <= FRESH_SECONDS).then_some(point)
 }
 
 /// `vitals.exe --status`: one line for the status line of Claude Code, from the database in milliseconds.
@@ -223,7 +222,7 @@ fn print_status() -> ExitCode {
     let line = tray::status_line(
         &summary,
         fresh_runners(&storage, now),
-        fresh_gpu_temp(&storage, now),
+        fresh_sensor_sample(&storage, now).as_ref(),
         system::windows::ui_language_is_russian(),
     );
     if writeln!(std::io::stdout(), "{line}").is_ok() {

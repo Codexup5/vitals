@@ -4,8 +4,8 @@ A local health panel for a Windows PC: crashes and errors, disks and safe cleanu
 startup and services, sensors. One small exe written in Rust (Tauri 2, the interface in Leptos compiled to
 WebAssembly), no account, no telemetry: everything stays on your PC, in `%APPDATA%\Vitals`.
 
-> Status: every module of v1 works. Next: the CPU temperature and the fans through LibreHardwareMonitor, then the first
-> release, v0.1. Until then, build it from source (below).
+> Status: every module of v1 works, the CPU temperature and the fans too once you run LibreHardwareMonitor. Next: the
+> first release, v0.1. Until then, build it from source (below).
 
 ## What it shows
 
@@ -17,7 +17,7 @@ WebAssembly), no account, no telemetry: everything stays on your PC, in `%APPDAT
 | Runners and Docker   | Self-hosted GitHub runners found by their `C:\actions-runner*` folders, Docker containers, a Gaming and a Coding mode. Hidden on a PC with neither      |
 | Network              | Latency, loss and jitter to the router and to the internet every 5 minutes; the link speed; a speed test on its button; the devices on the network      |
 | Startup and services | Programs that start at sign-in with their cost, publisher and signature; third-party services. Off with a one-click way back; Microsoft's are view only |
-| Sensors              | CPU load and clock, memory, NVIDIA cards through `nvidia-smi`; a live chart and a month of history                                                      |
+| Sensors              | CPU load and clock, memory, NVIDIA cards through `nvidia-smi`; the CPU temperature, power and fans from your LibreHardwareMonitor; a chart and history  |
 | Settings             | The start with Windows, in the tray (off by default); Telegram alerts through your own bot (off by default); Claude Code                                |
 
 The window is in Russian or English, by the language of Windows, with a dark (Catppuccin Mocha) and a light (Latte)

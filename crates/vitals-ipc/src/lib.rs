@@ -1099,7 +1099,8 @@ pub struct SensorsHistoryArgs {
     pub hours: u32,
 }
 
-/// The processor as Windows' performance counters see it, over the interval since the reading before.
+/// The processor as Windows' performance counters see it, over the interval since the reading before; its temperature
+/// and power come from `LibreHardwareMonitor`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CpuReading {
@@ -1109,6 +1110,18 @@ pub struct CpuReading {
     /// The effective clock: the base one times the performance the counters measured
     pub mhz: Option<f64>,
     pub base_mhz: Option<f64>,
+    /// Tctl/Tdie of AMD, the package of Intel
+    pub temp_c: Option<f64>,
+    /// The package power
+    pub power_w: Option<f64>,
+}
+
+/// A fan of the board or of a cooler as `LibreHardwareMonitor` names it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FanReading {
+    pub name: String,
+    pub rpm: f64,
 }
 
 /// A graphics card as `nvidia-smi` reads it; a value the card does not report is absent.
@@ -1136,8 +1149,12 @@ pub struct SensorReading {
     pub cpu: CpuReading,
     pub ram_used_bytes: Option<u64>,
     pub ram_total_bytes: Option<u64>,
-    /// Empty without an NVIDIA card; the cards of other makers need `LibreHardwareMonitor`
+    /// Empty without an NVIDIA card
     pub gpus: Vec<GpuReading>,
+    /// The fans that spin or spun since `LibreHardwareMonitor` started, not the cards' ones
+    pub fans: Vec<FanReading>,
+    /// `LibreHardwareMonitor` answered: the temperature and the power of the processor and the fans come from it
+    pub has_lhm: bool,
 }
 
 /// A point of a sensors chart: one live reading, or one five-minute sample of the history. The card is the first one.
@@ -1152,6 +1169,7 @@ pub struct SensorPoint {
     pub gpu_temp_c: Option<f64>,
     pub gpu_load_pct: Option<f64>,
     pub gpu_power_w: Option<f64>,
+    pub cpu_temp_c: Option<f64>,
 }
 
 /// The live sensors: the latest reading and the points of the last ten minutes, oldest first.

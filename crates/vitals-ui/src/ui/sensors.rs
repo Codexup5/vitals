@@ -109,7 +109,7 @@ pub fn SensorsPage() -> impl IntoView {
                             locale=locale()
                             on_retry=move || history.refetch()
                         />
-                        <Readings tables=ready.tables has_gpu=ready.has_gpu locale=locale() />
+                        <Readings tables=ready.tables has_gpu=ready.has_gpu has_lhm=ready.has_lhm locale=locale() />
                     }
                         .into_any()
                 }
@@ -263,7 +263,12 @@ fn Plot(chart: SensorChart, title: String) -> impl IntoView {
 }
 
 #[component]
-fn Readings(tables: Vec<ReadingTable>, has_gpu: bool, locale: Locale) -> impl IntoView {
+fn Readings(
+    tables: Vec<ReadingTable>,
+    has_gpu: bool,
+    has_lhm: bool,
+    locale: Locale,
+) -> impl IntoView {
     let texts = &locale.texts().sensors;
     view! {
         <section class="section" aria-labelledby="readings-title">
@@ -296,8 +301,28 @@ fn Readings(tables: Vec<ReadingTable>, has_gpu: bool, locale: Locale) -> impl In
                     })
                     .collect_view()}
             </div>
-            <p class="muted">{texts.lhm_note}</p>
+            {if has_lhm {
+                view! { <p class="muted">{texts.lhm_source}</p> }.into_any()
+            } else {
+                view! { <LhmSetup locale /> }.into_any()
+            }}
             {(!has_gpu).then(|| view! { <p class="muted">{texts.no_gpu_note}</p> })}
         </section>
+    }
+}
+
+/// How to turn on what needs a driver: the panel installs none, the user runs `LibreHardwareMonitor` and its server.
+#[component]
+fn LhmSetup(locale: Locale) -> impl IntoView {
+    let texts = &locale.texts().sensors;
+    view! {
+        <div class="notice">
+            <h3>{texts.lhm_setup_title}</h3>
+            <p>{texts.lhm_setup_intro}</p>
+            <ol class="lhm-steps">
+                {texts.lhm_setup_steps.into_iter().map(|step| view! { <li>{step}</li> }).collect_view()}
+            </ol>
+            <p class="muted">{texts.lhm_setup_outro}</p>
+        </div>
     }
 }

@@ -42,3 +42,11 @@
     font-weight: normal;
   }
 }
+
+.lhm-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding-inline-start: var(--space-5);
+}

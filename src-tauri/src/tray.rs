@@ -1,6 +1,7 @@
 use tauri::menu::{Menu, MenuEvent, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Runtime};
+use vitals_ipc::SensorPoint;
 
 use crate::collector::HealthSummary;
 
@@ -49,11 +50,12 @@ fn russian_days(count: i64) -> &'static str {
 }
 
 /// "Vitals · 14 дней без падений · C: 207.6 ГБ свободно"; a part with no data yet is left out.
-/// The line of `vitals.exe --status` for the status line of Claude Code: the tooltip and, when known, the runners.
+/// The line of `vitals.exe --status` for the status line of Claude Code: the tooltip and, when known, the runners and
+/// the temperatures of the last sample of the sensors.
 pub fn status_line(
     summary: &HealthSummary,
     runners: Option<(u32, u32)>,
-    gpu_temp_c: Option<f64>,
+    sensors: Option<&SensorPoint>,
     is_russian: bool,
 ) -> String {
     let mut parts = vec![tooltip_text(summary, is_russian)];
@@ -65,8 +67,12 @@ pub fn status_line(
         };
         parts.push(format!("{word} {online}/{total}"));
     }
-    if let Some(temp) = gpu_temp_c {
-        parts.push(format!("GPU {temp:.0} °C"));
+    if let Some(point) = sensors {
+        for (chip, temp) in [("CPU", point.cpu_temp_c), ("GPU", point.gpu_temp_c)] {
+            if let Some(temp) = temp {
+                parts.push(format!("{chip} {temp:.0} °C"));
+            }
+        }
     }
     parts.join(" · ")
 }
@@ -158,18 +164,37 @@ mod tests {
         assert_eq!(tooltip_text(&empty, true), "Vitals");
     }
 
+    fn sample(cpu_temp_c: Option<f64>, gpu_temp_c: Option<f64>) -> SensorPoint {
+        SensorPoint {
+            time: 0,
+            cpu_load_pct: Some(10.0),
+            cpu_mhz: None,
+            ram_used_pct: None,
+            gpu_temp_c,
+            gpu_load_pct: None,
+            gpu_power_w: None,
+            cpu_temp_c,
+        }
+    }
+
     #[test]
-    fn the_status_line_adds_the_runners_and_the_card() {
+    fn the_status_line_adds_the_runners_and_the_temperatures() {
         let summary = HealthSummary {
             days_without_crash: Some(1),
             system_drive_free_gb: Some(233.9),
         };
         assert_eq!(
-            status_line(&summary, Some((5, 5)), Some(41.6), false),
-            "Vitals · 1 day without crashes · C: 233.9 GB free · runners 5/5 · GPU 42 °C"
+            status_line(
+                &summary,
+                Some((5, 5)),
+                Some(&sample(Some(61.4), Some(41.6))),
+                false
+            ),
+            "Vitals · 1 day without crashes · C: 233.9 GB free · runners 5/5 · CPU 61 °C · GPU 42 °C"
         );
+        // Without LibreHardwareMonitor only the card is known
         assert_eq!(
-            status_line(&summary, None, Some(27.0), true),
+            status_line(&summary, None, Some(&sample(None, Some(27.0))), true),
             "Vitals · 1 день без падений · C: 233,9 ГБ свободно · GPU 27 °C"
         );
         assert_eq!(

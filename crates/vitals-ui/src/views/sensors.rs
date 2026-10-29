@@ -1,7 +1,7 @@
 //! The sensors screen: the counters of the latest reading, a chart of the load or the temperature over the live ten
-//! minutes or the history, and the readings of the processor, the memory and each card.
+//! minutes or the history, and the readings of the processor, the memory, each card and the fans.
 
-use vitals_ipc::{GpuReading, SensorPoint, SensorReading, SensorsLive};
+use vitals_ipc::{FanReading, GpuReading, SensorPoint, SensorReading, SensorsLive};
 
 use crate::format;
 use crate::i18n::Locale;
@@ -11,13 +11,16 @@ use crate::views::network::{
     stretches_of,
 };
 
-/// Both metrics draw on 0–100: percent of load, degrees Celsius a card never passes
+/// Both metrics draw on 0–100: percent of load, degrees Celsius a chip never passes
 const SCALE: f64 = 100.0;
 const LIVE_STEP_SECONDS: i64 = 2;
 const HISTORY_STEP_SECONDS: i64 = 5 * 60;
 /// NVIDIA cards slow down near 90 °C; from 80 the case is worth a look
 const GPU_WARM_C: f64 = 80.0;
 const GPU_HOT_C: f64 = 90.0;
+/// Ryzen 7000 and 9000 boost up to 95 °C by design and Intel throttles at 100: from 95 the processor is at its limit
+const CPU_WARM_C: f64 = 85.0;
+const CPU_HOT_C: f64 = 95.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Span {
@@ -122,7 +125,8 @@ pub enum ChartState {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReadingRow {
-    pub label: &'static str,
+    /// A word of the catalog, or a fan as `LibreHardwareMonitor` names it
+    pub label: String,
     pub value: String,
     /// The value is a word for what is missing, drawn muted
     pub is_missing: bool,
@@ -140,6 +144,8 @@ pub struct SensorsReady {
     pub chart: ChartState,
     pub tables: Vec<ReadingTable>,
     pub has_gpu: bool,
+    /// `LibreHardwareMonitor` answered; without it the screen says how to turn the sensors on
+    pub has_lhm: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -188,31 +194,32 @@ fn mebibytes(value: f64, locale: Locale) -> String {
     format::bytes((value.max(0.0) * 1024.0 * 1024.0) as u64, locale)
 }
 
-#[allow(
-    clippy::cast_precision_loss,
-    reason = "a share of memory in percent: bytes beyond 2^53 lose nothing visible"
-)]
-fn share(used: u64, total: u64) -> Option<f64> {
-    (total > 0).then(|| used as f64 * 100.0 / total as f64)
-}
-
-fn missing(label: &'static str, word: &'static str) -> ReadingRow {
+fn missing(label: &str, word: &'static str) -> ReadingRow {
     ReadingRow {
-        label,
+        label: label.to_owned(),
         value: word.to_owned(),
         is_missing: true,
     }
 }
 
-fn row(label: &'static str, value: Option<String>, locale: Locale) -> ReadingRow {
+fn row(label: &str, value: Option<String>, locale: Locale) -> ReadingRow {
     value.map_or_else(
         || missing(label, locale.texts().sensors.not_reported),
         |value| ReadingRow {
-            label,
+            label: label.to_owned(),
             value,
             is_missing: false,
         },
     )
+}
+
+/// A value only `LibreHardwareMonitor` gives: without it the row says it is needed.
+fn lhm_row(label: &str, value: Option<String>, has_lhm: bool, locale: Locale) -> ReadingRow {
+    if has_lhm {
+        row(label, value, locale)
+    } else {
+        missing(label, locale.texts().sensors.needs_lhm)
+    }
 }
 
 fn pair(used: Option<String>, total: Option<String>, locale: Locale) -> Option<String> {
@@ -223,14 +230,22 @@ fn pair(used: Option<String>, total: Option<String>, locale: Locale) -> Option<S
     }
 }
 
-fn gpu_tone(temp_c: f64) -> Tone {
-    if temp_c >= GPU_HOT_C {
+fn tone_of(temp_c: f64, warm_c: f64, hot_c: f64) -> Tone {
+    if temp_c >= hot_c {
         Tone::Danger
-    } else if temp_c >= GPU_WARM_C {
+    } else if temp_c >= warm_c {
         Tone::Warn
     } else {
         Tone::Ok
     }
+}
+
+fn gpu_tone(temp_c: f64) -> Tone {
+    tone_of(temp_c, GPU_WARM_C, GPU_HOT_C)
+}
+
+fn cpu_tone(temp_c: f64) -> Tone {
+    tone_of(temp_c, CPU_WARM_C, CPU_HOT_C)
 }
 
 fn memory_text(reading: &SensorReading, locale: Locale) -> Option<String> {
@@ -270,11 +285,18 @@ fn stat(label: &'static str, value: Option<String>, hint: Option<String>) -> Sta
     }
 }
 
+/// The processor and the card side by side, each with its load and its temperature; the memory is in the table.
 fn stats_of(reading: Option<&SensorReading>, locale: Locale) -> Vec<Stat> {
     let texts = &locale.texts().sensors;
     let cpu = reading.map(|reading| &reading.cpu);
     let gpu = reading.and_then(|reading| reading.gpus.first());
     let no_gpu = || Some(texts.no_gpu.to_owned());
+    let cpu_temp_hint = if reading.is_some_and(|reading| reading.has_lhm) {
+        cpu.and_then(|cpu| cpu.power_w)
+            .map(|power| (texts.power_hint)(&watts(power, locale)))
+    } else {
+        Some(texts.needs_lhm.to_owned())
+    };
     vec![
         stat(
             texts.cpu,
@@ -282,13 +304,14 @@ fn stats_of(reading: Option<&SensorReading>, locale: Locale) -> Vec<Stat> {
             cpu.and_then(|cpu| cpu.mhz)
                 .map(|value| (texts.clock_hint)(&ghz(value, locale))),
         ),
-        stat(
-            texts.memory,
-            reading
-                .and_then(|reading| share(reading.ram_used_bytes?, reading.ram_total_bytes?))
-                .map(percent),
-            reading.and_then(|reading| memory_text(reading, locale)),
-        ),
+        Stat {
+            tone: cpu.and_then(|cpu| cpu.temp_c).map(cpu_tone),
+            ..stat(
+                texts.cpu_temperature,
+                cpu.and_then(|cpu| cpu.temp_c).map(celsius),
+                cpu_temp_hint,
+            )
+        },
         stat(
             texts.gpu,
             gpu.and_then(|gpu| gpu.load_pct).map(percent),
@@ -312,6 +335,7 @@ fn stats_of(reading: Option<&SensorReading>, locale: Locale) -> Vec<Stat> {
 fn system_table(reading: &SensorReading, locale: Locale) -> ReadingTable {
     let texts = &locale.texts().sensors;
     let cpu = &reading.cpu;
+    let has_lhm = reading.has_lhm;
     let clock = cpu.mhz.map(|value| {
         let now = ghz(value, locale);
         cpu.base_mhz.map_or_else(
@@ -325,10 +349,31 @@ fn system_table(reading: &SensorReading, locale: Locale) -> ReadingTable {
             row(texts.processor, cpu.name.clone(), locale),
             row(texts.load, cpu.load_pct.map(percent), locale),
             row(texts.clock, clock, locale),
-            missing(texts.cpu_temperature, texts.needs_lhm),
+            lhm_row(texts.temperature, cpu.temp_c.map(celsius), has_lhm, locale),
+            lhm_row(
+                texts.power,
+                cpu.power_w.map(|value| watts(value, locale)),
+                has_lhm,
+                locale,
+            ),
             row(texts.memory, memory_text(reading, locale), locale),
         ],
     }
+}
+
+fn rpm(value: f64, locale: Locale) -> String {
+    (locale.texts().sensors.rpm)(&format::count(whole(value), locale))
+}
+
+/// The fans `LibreHardwareMonitor` sees, none when it sees none or does not answer.
+fn fans_table(fans: &[FanReading], locale: Locale) -> Option<ReadingTable> {
+    (!fans.is_empty()).then(|| ReadingTable {
+        title: locale.texts().sensors.fans_title.to_owned(),
+        rows: fans
+            .iter()
+            .map(|fan| row(&fan.name, Some(rpm(fan.rpm, locale)), locale))
+            .collect(),
+    })
 }
 
 fn gpu_table(gpu: &GpuReading, locale: Locale) -> ReadingTable {
@@ -369,7 +414,10 @@ fn series_of(
             ("line-cpu", texts.cpu, |point| point.cpu_load_pct),
             ("line-gpu", texts.gpu, |point| point.gpu_load_pct),
         ],
-        Metric::Temperature => vec![("line-gpu", texts.gpu, |point| point.gpu_temp_c)],
+        Metric::Temperature => vec![
+            ("line-cpu", texts.cpu, |point| point.cpu_temp_c),
+            ("line-gpu", texts.gpu, |point| point.gpu_temp_c),
+        ],
     };
     all.into_iter()
         .filter(|(_, _, value_of)| points.iter().any(|point| value_of(point).is_some()))
@@ -499,17 +547,19 @@ pub fn sensors_view(
             .flat_map(|reading| &reading.gpus)
             .map(|gpu| gpu_table(gpu, locale)),
     );
+    tables.extend(reading.and_then(|reading| fans_table(&reading.fans, locale)));
     SensorsView::Ready(SensorsReady {
         stats: stats_of(reading, locale),
         chart: chart_state(live, history, span, metric, now, locale),
         tables,
         has_gpu: reading.is_some_and(|reading| !reading.gpus.is_empty()),
+        has_lhm: reading.is_some_and(|reading| reading.has_lhm),
     })
 }
 
 #[cfg(test)]
 mod tests {
-    use vitals_ipc::CpuReading;
+    use vitals_ipc::{CpuReading, FanReading};
 
     use super::*;
 
@@ -536,10 +586,37 @@ mod tests {
                 load_pct: Some(12.4),
                 mhz: Some(4950.0),
                 base_mhz: Some(4400.0),
+                temp_c: None,
+                power_w: None,
             },
             ram_used_bytes: Some(16 * 1024 * 1024 * 1024),
             ram_total_bytes: Some(64 * 1024 * 1024 * 1024),
             gpus,
+            fans: Vec::new(),
+            has_lhm: false,
+        }
+    }
+
+    /// The reading with `LibreHardwareMonitor` running: a warm processor and two fans, one of them stopped
+    fn with_lhm(reading: SensorReading) -> SensorReading {
+        SensorReading {
+            cpu: CpuReading {
+                temp_c: Some(86.4),
+                power_w: Some(141.6),
+                ..reading.cpu
+            },
+            fans: vec![
+                FanReading {
+                    name: "CPU Fan #1".to_owned(),
+                    rpm: 1254.0,
+                },
+                FanReading {
+                    name: "Chassis Fan #1".to_owned(),
+                    rpm: 0.0,
+                },
+            ],
+            has_lhm: true,
+            ..reading
         }
     }
 
@@ -552,6 +629,7 @@ mod tests {
             gpu_temp_c: gpu.map(|load| load + 20.0),
             gpu_load_pct: gpu,
             gpu_power_w: None,
+            cpu_temp_c: cpu.map(|load| load + 30.0),
         }
     }
 
@@ -570,7 +648,7 @@ mod tests {
     }
 
     #[test]
-    fn the_counters_say_the_load_the_memory_and_the_card() {
+    fn the_counters_say_the_processor_and_the_card() {
         let answer = live(vec![card()], Vec::new());
         let view = ready(sensors_view(
             Some(Ok(&answer)),
@@ -581,19 +659,75 @@ mod tests {
             Locale::En,
         ));
         let values: Vec<&str> = view.stats.iter().map(|stat| stat.value.as_str()).collect();
-        assert_eq!(values, ["12 %", "25 %", "20 %", "27 °C"]);
+        assert_eq!(values, ["12 %", "—", "20 %", "27 °C"]);
         assert_eq!(view.stats[0].hint.as_deref(), Some("at 5.0 GHz"));
-        assert_eq!(view.stats[1].hint.as_deref(), Some("16.0 GB of 64.0 GB"));
+        // Without LibreHardwareMonitor the processor's temperature says what it needs
+        assert_eq!(
+            view.stats[1].hint.as_deref(),
+            Some(Locale::En.texts().sensors.needs_lhm)
+        );
+        assert_eq!(view.stats[1].tone, None);
         assert_eq!(view.stats[3].hint.as_deref(), Some("power 24 W of 285 W"));
         assert_eq!(view.stats[3].tone, Some(Tone::Ok));
         assert!(view.has_gpu);
+        assert!(!view.has_lhm);
     }
 
     #[test]
-    fn a_hot_card_is_marked() {
+    fn with_lhm_the_processor_has_its_temperature_power_and_fans() {
+        let answer = SensorsLive {
+            reading: Some(with_lhm(reading(vec![card()]))),
+            points: Vec::new(),
+        };
+        let view = ready(sensors_view(
+            Some(Ok(&answer)),
+            None,
+            Span::Live,
+            Metric::Load,
+            1_000,
+            Locale::En,
+        ));
+        assert_eq!(view.stats[1].value, "86 °C");
+        assert_eq!(view.stats[1].hint.as_deref(), Some("power 142 W"));
+        assert_eq!(view.stats[1].tone, Some(Tone::Warn));
+        assert!(view.has_lhm);
+        let system = &view.tables[0];
+        assert_eq!(system.rows[3].value, "86 °C");
+        assert_eq!(system.rows[4].value, "142 W");
+        let fans = view.tables.last().unwrap();
+        assert_eq!(fans.title, Locale::En.texts().sensors.fans_title);
+        let rows: Vec<(&str, &str)> = fans
+            .rows
+            .iter()
+            .map(|row| (row.label.as_str(), row.value.as_str()))
+            .collect();
+        assert_eq!(
+            rows,
+            [("CPU Fan #1", "1,254 RPM"), ("Chassis Fan #1", "0 RPM")]
+        );
+        // Running but not reporting the processor: the rows say no data, not what is needed
+        let bare = SensorReading {
+            cpu: CpuReading {
+                temp_c: None,
+                power_w: None,
+                ..reading(Vec::new()).cpu
+            },
+            fans: Vec::new(),
+            ..with_lhm(reading(Vec::new()))
+        };
+        let table = system_table(&bare, Locale::En);
+        assert_eq!(table.rows[3].value, Locale::En.texts().sensors.not_reported);
+        assert_eq!(fans_table(&bare.fans, Locale::En), None);
+    }
+
+    #[test]
+    fn a_hot_chip_is_marked() {
         assert_eq!(gpu_tone(79.9), Tone::Ok);
         assert_eq!(gpu_tone(80.0), Tone::Warn);
         assert_eq!(gpu_tone(91.0), Tone::Danger);
+        assert_eq!(cpu_tone(84.9), Tone::Ok);
+        assert_eq!(cpu_tone(85.0), Tone::Warn);
+        assert_eq!(cpu_tone(95.0), Tone::Danger);
     }
 
     #[test]
@@ -621,9 +755,16 @@ mod tests {
         };
         assert_eq!(chart.lines.len(), 1);
         assert_eq!(chart.lines[0].class, "line-cpu");
-        // Without a card there is nothing to draw for the temperature
+        // Without a card and without LibreHardwareMonitor there is nothing to draw for the temperature
+        let cold = live(
+            Vec::new(),
+            vec![SensorPoint {
+                cpu_temp_c: None,
+                ..point(400, Some(10.0), None)
+            }],
+        );
         let view = ready(sensors_view(
-            Some(Ok(&answer)),
+            Some(Ok(&cold)),
             None,
             Span::Live,
             Metric::Temperature,
@@ -634,6 +775,19 @@ mod tests {
             view.chart,
             ChartState::Empty(Locale::En.texts().sensors.no_points_live)
         );
+    }
+
+    #[test]
+    fn the_temperature_draws_the_processor_and_the_card() {
+        let points = vec![
+            point(400, Some(10.0), Some(5.0)),
+            point(402, Some(20.0), None),
+        ];
+        let chart =
+            sensor_chart(&points, Span::Live, Metric::Temperature, 1_000, Locale::En).unwrap();
+        let classes: Vec<&str> = chart.lines.iter().map(|line| line.class).collect();
+        assert_eq!(classes, ["line-cpu", "line-gpu"]);
+        assert!(chart.points[1].title.ends_with("CPU 50 °C · GPU —"));
     }
 
     #[test]
@@ -656,6 +810,8 @@ mod tests {
             (texts.with_base)(&ghz(4950.0, Locale::Ru), &ghz(4400.0, Locale::Ru))
         );
         assert!(system.rows[3].is_missing);
+        assert_eq!(system.rows[3].value, texts.needs_lhm);
+        assert_eq!(system.rows[4].value, texts.needs_lhm);
         let gpu = &view.tables[1];
         assert_eq!(gpu.title, "NVIDIA GeForce RTX 4070 Ti SUPER");
         assert_eq!(gpu.rows[4].value, (texts.mhz)("2\u{a0}805"));

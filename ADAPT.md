@@ -55,8 +55,10 @@ What needs no code at all:
 - **Claude Code**: Settings → Claude Code → "Connect to Claude Code" adds the MCP server `pc-health`; the status line
   is `vitals.exe --status` in the user's own status line script.
 - **Runners and Docker**: the screen hides itself when the PC has neither.
-- **Sensors**: NVIDIA cards are read through the `nvidia-smi` of their driver. The CPU temperature, the fans and other
-  makers' cards need LibreHardwareMonitor, which the user installs themselves (its PawnIO driver, never WinRing0).
+- **Sensors**: NVIDIA cards are read through the `nvidia-smi` of their driver. The CPU temperature and power and the
+  fans come from LibreHardwareMonitor, which the user installs themselves (its PawnIO driver, never WinRing0) and whose
+  web server they turn on; the Sensors screen says how. A port other than 8085 is `sensors::lhm::PORT`. Cards of other
+  makers are not read yet.
 
 ## 3. Never
 

@@ -1,5 +1,5 @@
 //! The Windows side of the sensors: the processor's performance counters (PDH), its name in the registry, the memory,
-//! and `nvidia-smi` of the NVIDIA driver.
+//! `nvidia-smi` of the NVIDIA driver, and `LibreHardwareMonitor` when it runs.
 #![allow(
     unsafe_code,
     reason = "the PDH and registry calls of the sensors live in this file"
@@ -17,7 +17,7 @@ use windows::Win32::System::Performance::{
 use windows::Win32::System::Registry::{HKEY_LOCAL_MACHINE, RRF_RT_REG_SZ, RegGetValueW};
 use windows::core::{HSTRING, PCWSTR};
 
-use super::{CpuCounters, GpuReading, NVIDIA_SMI_FIELDS, SensorReading, cpu_of, gpus_of};
+use super::{CpuCounters, GpuReading, NVIDIA_SMI_FIELDS, SensorReading, cpu_of, gpus_of, lhm};
 use crate::process::output;
 use crate::system::windows::memory_status;
 
@@ -173,7 +173,8 @@ fn gpus(smi: &Path) -> Vec<GpuReading> {
     }
 }
 
-/// What a sampler reads each time: the counters stay open, the processor's name and `nvidia-smi` are found once.
+/// What a sampler reads each time: the counters stay open, the processor's name and `nvidia-smi` are found once;
+/// `LibreHardwareMonitor` is asked each time, so it is seen as soon as the user starts it.
 #[derive(Debug)]
 pub struct Reader {
     cpu: Option<CpuSampler>,
@@ -193,12 +194,17 @@ impl Reader {
     pub fn read(&self, now: i64) -> SensorReading {
         let counters = self.cpu.as_ref().map(CpuSampler::read).unwrap_or_default();
         let memory = memory_status();
+        let monitor = lhm::read_local();
+        let has_lhm = monitor.is_some();
+        let monitor = monitor.unwrap_or_default();
         SensorReading {
             time: now,
-            cpu: cpu_of(self.cpu_name.clone(), counters),
+            cpu: cpu_of(self.cpu_name.clone(), counters, &monitor),
             ram_used_bytes: memory.map(|(total, available)| total.saturating_sub(available)),
             ram_total_bytes: memory.map(|(total, _)| total),
             gpus: self.smi.as_deref().map(gpus).unwrap_or_default(),
+            fans: monitor.fans,
+            has_lhm,
         }
     }
 }
