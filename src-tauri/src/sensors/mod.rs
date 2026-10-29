@@ -1,16 +1,19 @@
-//! The sensors that need no driver: the load and the clock of the processor from Windows' performance counters, the
-//! memory in use, and NVIDIA cards through `nvidia-smi`, which comes with their driver. The temperature of the
-//! processor and the fans need `LibreHardwareMonitor` (the brief, §1 p.8) and come with it.
+//! The sensors: the load and the clock of the processor from Windows' performance counters, the memory in use, and
+//! NVIDIA cards through `nvidia-smi`, which comes with their driver. The temperature and the power of the processor
+//! and the fans need a driver: they come from `LibreHardwareMonitor` when the user runs it (the brief, §1 p.8).
 //!
 //! The live chart reads every two seconds, but only while the screen asks: with the window closed only the
 //! five-minute sample of the history runs (the brief, §1 p.12).
 
+pub mod lhm;
 #[cfg(windows)]
 pub mod windows;
 
 use std::collections::VecDeque;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
+
+use lhm::LhmReading;
 
 pub use vitals_ipc::{CpuReading, GpuReading, SensorPoint, SensorReading, SensorsLive};
 
@@ -68,8 +71,9 @@ pub struct CpuCounters {
     pub base_mhz: Option<f64>,
 }
 
-/// The processor as Task Manager shows it: the utilization capped at 100, the base clock times the performance.
-pub fn cpu_of(name: Option<String>, counters: CpuCounters) -> CpuReading {
+/// The processor as Task Manager shows it: the utilization capped at 100, the base clock times the performance. Its
+/// temperature and power are `LibreHardwareMonitor`'s.
+pub fn cpu_of(name: Option<String>, counters: CpuCounters, lhm: &LhmReading) -> CpuReading {
     CpuReading {
         name,
         load_pct: counters.utility_pct.map(|value| value.clamp(0.0, 100.0)),
@@ -78,6 +82,8 @@ pub fn cpu_of(name: Option<String>, counters: CpuCounters) -> CpuReading {
             .zip(counters.base_mhz)
             .map(|(performance, base)| base * performance / 100.0),
         base_mhz: counters.base_mhz,
+        temp_c: lhm.cpu_temp_c,
+        power_w: lhm.cpu_power_w,
     }
 }
 
@@ -100,6 +106,7 @@ pub fn point_of(reading: &SensorReading) -> SensorPoint {
         gpu_temp_c: gpu.and_then(|gpu| gpu.temp_c),
         gpu_load_pct: gpu.and_then(|gpu| gpu.load_pct),
         gpu_power_w: gpu.and_then(|gpu| gpu.power_w),
+        cpu_temp_c: reading.cpu.temp_c,
     }
 }
 
@@ -264,6 +271,11 @@ mod tests {
 
     #[test]
     fn the_processor_as_task_manager_shows_it() {
+        let lhm = LhmReading {
+            cpu_temp_c: Some(61.4),
+            cpu_power_w: Some(88.2),
+            fans: Vec::new(),
+        };
         let cpu = cpu_of(
             Some("AMD Ryzen 9 9900X".to_owned()),
             CpuCounters {
@@ -271,9 +283,11 @@ mod tests {
                 performance_pct: Some(112.5),
                 base_mhz: Some(4400.0),
             },
+            &lhm,
         );
         assert_eq!(cpu.load_pct, Some(100.0));
         assert_eq!(cpu.mhz, Some(4950.0));
+        assert_eq!((cpu.temp_c, cpu.power_w), (Some(61.4), Some(88.2)));
         // The first reading has no interval yet: no load and no clock, the base is known
         let first = cpu_of(
             None,
@@ -281,6 +295,7 @@ mod tests {
                 base_mhz: Some(4400.0),
                 ..CpuCounters::default()
             },
+            &LhmReading::default(),
         );
         assert_eq!((first.load_pct, first.mhz), (None, None));
     }
@@ -288,10 +303,19 @@ mod tests {
     fn reading(time: i64) -> SensorReading {
         SensorReading {
             time,
-            cpu: cpu_of(None, CpuCounters::default()),
+            cpu: cpu_of(
+                None,
+                CpuCounters::default(),
+                &LhmReading {
+                    cpu_temp_c: Some(55.0),
+                    ..LhmReading::default()
+                },
+            ),
             ram_used_bytes: Some(16),
             ram_total_bytes: Some(64),
             gpus: gpus_of(SMI),
+            fans: Vec::new(),
+            has_lhm: true,
         }
     }
 
@@ -301,6 +325,7 @@ mod tests {
         assert_eq!(point.ram_used_pct, Some(25.0));
         assert_eq!(point.gpu_temp_c, Some(26.72));
         assert_eq!(point.gpu_power_w, Some(23.54));
+        assert_eq!(point.cpu_temp_c, Some(55.0));
         let bare = SensorReading {
             ram_total_bytes: Some(0),
             gpus: Vec::new(),

@@ -73,6 +73,7 @@ const MIGRATIONS: &[&str] = &[
        gpu_load REAL,
        gpu_power REAL
      );",
+    "ALTER TABLE sensor_samples ADD COLUMN cpu_temp REAL;",
 ];
 
 /// Moves the schema up one step at a time, each step under a write lock that reads the version again: the collector,

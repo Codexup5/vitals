@@ -5,7 +5,7 @@ use vitals_ipc::SensorPoint;
 
 use super::{Storage, StorageError};
 
-const COLUMNS: &str = "time, cpu_load, cpu_mhz, ram_used, gpu_temp, gpu_load, gpu_power";
+const COLUMNS: &str = "time, cpu_load, cpu_mhz, ram_used, gpu_temp, gpu_load, gpu_power, cpu_temp";
 
 fn point_from(row: &rusqlite::Row<'_>) -> rusqlite::Result<SensorPoint> {
     Ok(SensorPoint {
@@ -16,13 +16,14 @@ fn point_from(row: &rusqlite::Row<'_>) -> rusqlite::Result<SensorPoint> {
         gpu_temp_c: row.get(4)?,
         gpu_load_pct: row.get(5)?,
         gpu_power_w: row.get(6)?,
+        cpu_temp_c: row.get(7)?,
     })
 }
 
 impl Storage {
     pub fn put_sensor_sample(&self, point: &SensorPoint) -> Result<(), StorageError> {
         self.conn.execute(
-            &format!("INSERT OR REPLACE INTO sensor_samples ({COLUMNS}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)"),
+            &format!("INSERT OR REPLACE INTO sensor_samples ({COLUMNS}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"),
             params![
                 point.time,
                 point.cpu_load_pct,
@@ -31,6 +32,7 @@ impl Storage {
                 point.gpu_temp_c,
                 point.gpu_load_pct,
                 point.gpu_power_w,
+                point.cpu_temp_c,
             ],
         )?;
         Ok(())
@@ -69,15 +71,16 @@ impl Storage {
 mod tests {
     use super::*;
 
-    fn point(time: i64, gpu_temp_c: Option<f64>) -> SensorPoint {
+    fn point(time: i64, temp_c: Option<f64>) -> SensorPoint {
         SensorPoint {
             time,
             cpu_load_pct: Some(12.5),
             cpu_mhz: Some(4950.0),
             ram_used_pct: Some(25.0),
-            gpu_temp_c,
-            gpu_load_pct: gpu_temp_c.map(|_| 20.0),
+            gpu_temp_c: temp_c,
+            gpu_load_pct: temp_c.map(|_| 20.0),
             gpu_power_w: None,
+            cpu_temp_c: temp_c.map(|temp| temp + 20.0),
         }
     }
 
