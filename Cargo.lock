@@ -4861,7 +4861,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "vitals"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "chrono",
  "quick-xml 0.42.0",
@@ -4882,7 +4882,7 @@ dependencies = [
 
 [[package]]
 name = "vitals-ipc"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -4890,7 +4890,7 @@ dependencies = [
 
 [[package]]
 name = "vitals-ui"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "chrono",
  "console_error_panic_hook",
@@ -5684,7 +5684,7 @@ dependencies = [
 
 [[package]]
 name = "xtask"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "grass",
  "serde_json",
