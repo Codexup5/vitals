@@ -4,7 +4,7 @@
 
 use std::io::{Read as _, Write as _};
 use std::net::{Ipv4Addr, SocketAddr, TcpStream};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use serde::Deserialize;
 use vitals_ipc::FanReading;
@@ -14,10 +14,10 @@ pub const PORT: u16 = 8085;
 /// Windows retries a connection to a closed port of this PC for about two seconds rather than failing at once; a
 /// server that listens here accepts in microseconds, so a missing one costs this per reading
 const CONNECT_DEADLINE: Duration = Duration::from_millis(200);
-/// A server that hangs costs at most this per read
+/// The whole answer comes within this, or there is none: a server that hangs or trickles its bytes costs no more
 const READ_DEADLINE: Duration = Duration::from_secs(1);
 /// The tree of a PC with many sensors is a few hundred kilobytes
-const MAX_ANSWER: u64 = 8 * 1024 * 1024;
+const MAX_ANSWER: usize = 8 * 1024 * 1024;
 
 /// The temperature of the processor in the order it is preferred: AMD gives Tctl/Tdie as one sensor, or both when
 /// Tctl carries an offset; Intel gives the package.
@@ -140,14 +140,29 @@ pub fn reading_of(json: &str) -> Option<LhmReading> {
 /// The body of `GET /data.json` from `address` on this PC, when a server answers 200 in time.
 pub fn fetch_tree(address: SocketAddr) -> Option<String> {
     let mut stream = TcpStream::connect_timeout(&address, CONNECT_DEADLINE).ok()?;
-    stream.set_read_timeout(Some(READ_DEADLINE)).ok()?;
+    let started = Instant::now();
     stream.set_write_timeout(Some(READ_DEADLINE)).ok()?;
     // One write: a request in pieces could meet a server that answers after the first and closes on the rest
     let request =
         format!("GET /data.json HTTP/1.0\r\nHost: {address}\r\nConnection: close\r\n\r\n");
     stream.write_all(request.as_bytes()).ok()?;
     let mut answer = Vec::new();
-    stream.take(MAX_ANSWER).read_to_end(&mut answer).ok()?;
+    let mut chunk = [0u8; 16 * 1024];
+    loop {
+        // A timeout per read alone would let a server that sends a byte now and then hold the sampler for good
+        let left = READ_DEADLINE
+            .checked_sub(started.elapsed())
+            .filter(|left| !left.is_zero())?;
+        stream.set_read_timeout(Some(left)).ok()?;
+        let read = stream.read(&mut chunk).ok()?;
+        if read == 0 {
+            break;
+        }
+        answer.extend_from_slice(&chunk[..read]);
+        if answer.len() > MAX_ANSWER {
+            return None;
+        }
+    }
     let answer = String::from_utf8(answer).ok()?;
     let (head, body) = answer.split_once("\r\n\r\n")?;
     let status = head.lines().next()?.split_whitespace().nth(1)?;
@@ -248,9 +263,9 @@ mod tests {
         );
     }
 
-    /// A server that reads one request whole, answers it with `answer` and closes: closing on unread bytes would
-    /// reset the connection rather than end it.
-    fn serve(answer: &'static str) -> SocketAddr {
+    /// A server that reads one request whole, answers it by `answer` and closes: closing on unread bytes would reset
+    /// the connection rather than end it.
+    fn serve(answer: impl FnOnce(&mut TcpStream) + Send + 'static) -> SocketAddr {
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
         let address = listener.local_addr().unwrap();
         std::thread::spawn(move || {
@@ -262,19 +277,40 @@ mod tests {
                 request.extend_from_slice(&chunk[..read]);
             }
             assert!(request.starts_with(b"GET /data.json HTTP/1.0\r\n"));
-            stream.write_all(answer.as_bytes()).unwrap();
+            answer(&mut stream);
         });
         address
     }
 
+    fn serve_text(text: &'static str) -> SocketAddr {
+        serve(move |stream| stream.write_all(text.as_bytes()).unwrap())
+    }
+
     #[test]
     fn fetches_the_tree_from_a_server_that_answers() {
-        let address = serve(
+        let address = serve_text(
             "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 17\r\n\r\n{\"Text\":\"Sensor\"}",
         );
         assert_eq!(fetch_tree(address).as_deref(), Some(r#"{"Text":"Sensor"}"#));
-        let address = serve("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n");
+        let address = serve_text("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n");
         assert_eq!(fetch_tree(address), None);
+    }
+
+    #[test]
+    fn a_server_that_trickles_is_given_up_on_time() {
+        // A byte every 100 ms, each within the time of one read, for longer than the whole answer may take
+        let address = serve(|stream| {
+            stream.write_all(b"HTTP/1.1 200 OK\r\n\r\n").unwrap();
+            for _ in 0..30 {
+                std::thread::sleep(Duration::from_millis(100));
+                if stream.write_all(b" ").is_err() {
+                    break;
+                }
+            }
+        });
+        let started = Instant::now();
+        assert_eq!(fetch_tree(address), None);
+        assert!(started.elapsed() < READ_DEADLINE * 2);
     }
 
     #[test]
