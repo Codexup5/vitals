@@ -53,15 +53,28 @@ impl Storage {
 
     /// Forgets changes that were never written; a run left without changes goes with them.
     pub fn drop_optimize_changes(&self, rows: &[i64]) -> Result<(), StorageError> {
+        let mut runs = Vec::new();
         for row in rows {
+            let run: Option<i64> = self
+                .conn
+                .query_row(
+                    "SELECT run FROM optimize_changes WHERE id = ?1",
+                    [row],
+                    |found| found.get(0),
+                )
+                .optional()?;
+            runs.extend(run);
             self.conn
                 .execute("DELETE FROM optimize_changes WHERE id = ?1", [row])?;
         }
-        self.conn.execute(
-            "DELETE FROM optimize_runs WHERE NOT EXISTS
-               (SELECT 1 FROM optimize_changes WHERE optimize_changes.run = optimize_runs.run)",
-            [],
-        )?;
+        // Only the runs these rows belonged to: another run may be open and still empty
+        for run in runs {
+            self.conn.execute(
+                "DELETE FROM optimize_runs WHERE run = ?1 AND NOT EXISTS
+                   (SELECT 1 FROM optimize_changes WHERE optimize_changes.run = ?1)",
+                [run],
+            )?;
+        }
         Ok(())
     }
 
@@ -128,16 +141,25 @@ impl Storage {
                 ))
             })?
             .collect::<Result<Vec<_>, _>>()?;
-        rows.into_iter()
-            .map(|(row, item, change, reverted_at)| {
-                Ok(StoredChange {
-                    row,
-                    id: serde_json::from_str(&item)?,
-                    change: serde_json::from_str(&change)?,
-                    reverted_at,
-                })
+        // A row a later version cannot read (a setting it no longer has) is skipped, not a broken journal
+        Ok(rows
+            .into_iter()
+            .filter_map(|(row, item, change, reverted_at)| {
+                if let (Ok(id), Ok(change)) =
+                    (serde_json::from_str(&item), serde_json::from_str(&change))
+                {
+                    Some(StoredChange {
+                        row,
+                        id,
+                        change,
+                        reverted_at,
+                    })
+                } else {
+                    tracing::warn!("optimize journal: row {row} ({item}) cannot be read");
+                    None
+                }
             })
-            .collect()
+            .collect())
     }
 }
 
@@ -249,6 +271,48 @@ mod tests {
             runs[1].changes[0].change,
             registry(Old::Absent, Data::Dword(1))
         );
+    }
+
+    #[test]
+    fn dropping_rows_keeps_another_open_run() {
+        let storage = Storage::in_memory().unwrap();
+        let open = storage.begin_optimize_run(1).unwrap();
+        let other = storage.begin_optimize_run(2).unwrap();
+        let row = storage
+            .put_optimize_change(
+                other,
+                TweakId::GameMode,
+                &registry(Old::Absent, Data::Dword(1)),
+            )
+            .unwrap();
+        storage.drop_optimize_changes(&[row]).unwrap();
+        assert_eq!(storage.optimize_run(other).unwrap(), None);
+        assert!(
+            storage.optimize_run(open).unwrap().is_some(),
+            "a run still being filled stays"
+        );
+    }
+
+    #[test]
+    fn a_row_that_cannot_be_read_is_skipped() {
+        let storage = Storage::in_memory().unwrap();
+        let run = storage.begin_optimize_run(1).unwrap();
+        storage
+            .put_optimize_change(
+                run,
+                TweakId::GameMode,
+                &registry(Old::Absent, Data::Dword(1)),
+            )
+            .unwrap();
+        storage
+            .conn
+            .execute(
+                "INSERT INTO optimize_changes (run, item, change) VALUES (?1, '\"games.gone\"', '{}')",
+                [run],
+            )
+            .unwrap();
+        let stored = storage.optimize_run(run).unwrap().unwrap();
+        assert_eq!(stored.changes.len(), 1);
     }
 
     #[test]
