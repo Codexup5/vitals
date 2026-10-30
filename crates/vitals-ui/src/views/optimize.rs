@@ -116,6 +116,8 @@ pub struct TweakLine {
     pub effect: &'static str,
     pub is_checked: bool,
     pub is_done: bool,
+    /// Nothing to apply: done, or a value that cannot be read
+    pub is_locked: bool,
     pub values: Vec<ValueLine>,
 }
 
@@ -158,15 +160,16 @@ fn line_of(row: &TweakRow, checked: &[TweakId], locale: Locale) -> TweakLine {
         id: row.id,
         title: tweak.title,
         hint: tweak.hint,
-        state: if is_done {
-            (texts.done, Tone::Ok)
-        } else {
-            (texts.todo, Tone::Accent)
+        state: match row.state {
+            TweakState::Done => (texts.done, Tone::Ok),
+            TweakState::Todo => (texts.todo, Tone::Accent),
+            TweakState::Unreadable => (texts.unreadable, Tone::Warn),
         },
         admin: (row.rights == Rights::Admin).then_some(texts.admin),
         effect: effect_word(row.effect, locale),
         is_checked: checked.contains(&row.id),
         is_done,
+        is_locked: row.state != TweakState::Todo,
         values: row
             .values
             .iter()
@@ -219,7 +222,7 @@ pub fn optimize_view(
     let done = offered.iter().filter(|line| line.is_done).count();
     let to_apply = offered
         .iter()
-        .filter(|line| line.is_checked && !line.is_done)
+        .filter(|line| line.is_checked && !line.is_locked)
         .count();
     let facts = &overview.facts;
     let vendor = match facts.cpu_vendor {

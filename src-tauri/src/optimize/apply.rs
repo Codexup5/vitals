@@ -307,7 +307,7 @@ mod tests {
 
     use super::super::plan::tests::{FakeReader, olegpc};
     use super::super::plan::{BALANCED, HIGH_PERFORMANCE};
-    use super::super::{Data, Hive, KeyAbsent, Location, Put};
+    use super::super::{Data, Hive, Location, Put, Unread};
     use super::*;
 
     const ADVANCED: &str = r"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced";
@@ -391,7 +391,7 @@ mod tests {
     }
 
     impl Reader for FakeMachine<'_> {
-        fn value(&self, at: &Location) -> Result<Option<Data>, KeyAbsent> {
+        fn value(&self, at: &Location) -> Result<Option<Data>, Unread> {
             self.reader.value(at)
         }
 

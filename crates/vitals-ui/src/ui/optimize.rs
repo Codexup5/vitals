@@ -309,7 +309,7 @@ fn Group(
                                         <label class="row-check">
                                             <input
                                                 type="checkbox"
-                                                disabled=line.is_done
+                                                disabled=line.is_locked
                                                 prop:checked=move || checked.with(|ids| ids.contains(&id))
                                                 on:change=move |_| toggle(id)
                                             />
