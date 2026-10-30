@@ -16,7 +16,8 @@ use windows::Wdk::Graphics::Direct3D::{
     KMTQAITYPE_WDDM_2_7_CAPS,
 };
 use windows::Win32::Foundation::{
-    ERROR_FILE_NOT_FOUND, ERROR_SERVICE_DISABLED, ERROR_SUCCESS, HLOCAL, LocalFree, WIN32_ERROR,
+    ERROR_FILE_NOT_FOUND, ERROR_NO_MORE_ITEMS, ERROR_SERVICE_DISABLED, ERROR_SUCCESS, HLOCAL,
+    LocalFree, WIN32_ERROR,
 };
 use windows::Win32::System::Power::{
     GetPwrCapabilities, GetSystemPowerStatus, PowerGetActiveScheme, PowerReadFriendlyName,
@@ -161,8 +162,8 @@ impl Key {
         }
     }
 
-    /// The names of the key's values; the default value is the empty name.
-    fn value_names(&self) -> Vec<String> {
+    /// The names of the key's values; the default value is the empty name. `Err` when the listing broke off.
+    fn value_names(&self) -> Result<Vec<String>, WIN32_ERROR> {
         let mut names = Vec::new();
         let mut buffer = vec![0u16; 16_384];
         for index in 0.. {
@@ -180,16 +181,20 @@ impl Key {
                     None,
                 )
             };
-            if read != ERROR_SUCCESS {
+            if read == ERROR_NO_MORE_ITEMS {
                 break;
+            }
+            if read != ERROR_SUCCESS {
+                return Err(read);
             }
             let length = usize::try_from(length).unwrap_or(0).min(buffer.len());
             names.push(String::from_utf16_lossy(&buffer[..length]));
         }
-        names
+        Ok(names)
     }
 
-    fn subkeys(&self) -> Vec<String> {
+    /// `Err` when the listing broke off.
+    fn subkeys(&self) -> Result<Vec<String>, WIN32_ERROR> {
         let mut names = Vec::new();
         let mut buffer = [0u16; 256];
         for index in 0.. {
@@ -207,13 +212,16 @@ impl Key {
                     None,
                 )
             };
-            if read != ERROR_SUCCESS {
+            if read == ERROR_NO_MORE_ITEMS {
                 break;
+            }
+            if read != ERROR_SUCCESS {
+                return Err(read);
             }
             let length = usize::try_from(length).unwrap_or(0).min(buffer.len());
             names.push(String::from_utf16_lossy(&buffer[..length]));
         }
-        names
+        Ok(names)
     }
 }
 
@@ -296,8 +304,10 @@ fn holds_only_path(root: HKEY, created: &str, value_key: &str, name: &str) -> bo
         let Ok(key) = Key::open(root, &current, KEY_READ) else {
             return false;
         };
-        let subkeys = key.subkeys();
-        let values = key.value_names();
+        // A listing that broke off says nothing: the key is kept
+        let (Ok(subkeys), Ok(values)) = (key.subkeys(), key.value_names()) else {
+            return false;
+        };
         let Some(next) = below.next() else {
             return subkeys.is_empty()
                 && values.iter().all(|value| value.eq_ignore_ascii_case(name));
