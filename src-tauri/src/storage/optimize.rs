@@ -3,8 +3,8 @@
 
 // Until the commands of step 11 call it, the journal is reached only from its tests
 #![allow(dead_code, reason = "wired to the commands in step 11 of the 11a plan")]
-#![allow(clippy::unused_self, clippy::unnecessary_wraps, reason = "stubs until step 6")]
 
+use rusqlite::{OptionalExtension, params};
 use vitals_ipc::TweakId;
 
 use super::{Storage, StorageError};
@@ -31,35 +31,116 @@ pub struct StoredRun {
 
 impl Storage {
     /// Opens a run; its changes are put one by one before each is written.
-    pub fn begin_optimize_run(&self, _time: i64) -> Result<i64, StorageError> {
-        Ok(0)
+    pub fn begin_optimize_run(&self, time: i64) -> Result<i64, StorageError> {
+        self.conn
+            .execute("INSERT INTO optimize_runs (time) VALUES (?1)", [time])?;
+        Ok(self.conn.last_insert_rowid())
     }
 
     pub fn put_optimize_change(
         &self,
-        _run: i64,
-        _id: TweakId,
-        _change: &Change,
+        run: i64,
+        id: TweakId,
+        change: &Change,
     ) -> Result<i64, StorageError> {
-        Ok(0)
+        self.conn.execute(
+            "INSERT INTO optimize_changes (run, item, change) VALUES (?1, ?2, ?3)",
+            params![
+                run,
+                serde_json::to_string(&id)?,
+                serde_json::to_string(change)?
+            ],
+        )?;
+        Ok(self.conn.last_insert_rowid())
     }
 
     /// Forgets changes that were never written; a run left without changes goes with them.
-    pub fn drop_optimize_changes(&self, _rows: &[i64]) -> Result<(), StorageError> {
+    pub fn drop_optimize_changes(&self, rows: &[i64]) -> Result<(), StorageError> {
+        for row in rows {
+            self.conn
+                .execute("DELETE FROM optimize_changes WHERE id = ?1", [row])?;
+        }
+        self.conn.execute(
+            "DELETE FROM optimize_runs WHERE NOT EXISTS
+               (SELECT 1 FROM optimize_changes WHERE optimize_changes.run = optimize_runs.run)",
+            [],
+        )?;
         Ok(())
     }
 
-    pub fn mark_reverted(&self, _rows: &[i64], _time: i64) -> Result<(), StorageError> {
+    /// Marks changes as put back; a change already marked keeps the time of its first revert.
+    pub fn mark_reverted(&self, rows: &[i64], time: i64) -> Result<(), StorageError> {
+        for row in rows {
+            self.conn.execute(
+                "UPDATE optimize_changes SET reverted_at = ?2 WHERE id = ?1 AND reverted_at IS NULL",
+                [*row, time],
+            )?;
+        }
         Ok(())
     }
 
     /// Every run, the newest first.
     pub fn optimize_runs(&self) -> Result<Vec<StoredRun>, StorageError> {
-        Ok(Vec::new())
+        let mut statement = self
+            .conn
+            .prepare_cached("SELECT run, time FROM optimize_runs ORDER BY run DESC")?;
+        let runs = statement
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+            .collect::<Result<Vec<(i64, i64)>, _>>()?;
+        runs.into_iter()
+            .map(|(run, time)| {
+                Ok(StoredRun {
+                    run,
+                    time,
+                    changes: self.optimize_changes(run)?,
+                })
+            })
+            .collect()
     }
 
-    pub fn optimize_run(&self, _run: i64) -> Result<Option<StoredRun>, StorageError> {
-        Ok(None)
+    pub fn optimize_run(&self, run: i64) -> Result<Option<StoredRun>, StorageError> {
+        let time: Option<i64> = self
+            .conn
+            .query_row(
+                "SELECT time FROM optimize_runs WHERE run = ?1",
+                [run],
+                |row| row.get(0),
+            )
+            .optional()?;
+        let Some(time) = time else {
+            return Ok(None);
+        };
+        Ok(Some(StoredRun {
+            run,
+            time,
+            changes: self.optimize_changes(run)?,
+        }))
+    }
+
+    fn optimize_changes(&self, run: i64) -> Result<Vec<StoredChange>, StorageError> {
+        let mut statement = self.conn.prepare_cached(
+            "SELECT id, item, change, reverted_at FROM optimize_changes WHERE run = ?1 ORDER BY id",
+        )?;
+        let rows = statement
+            .query_map([run], |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, Option<i64>>(3)?,
+                ))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        rows.into_iter()
+            .map(|(row, item, change, reverted_at)| {
+                Ok(StoredChange {
+                    row,
+                    id: serde_json::from_str(&item)?,
+                    change: serde_json::from_str(&change)?,
+                    reverted_at,
+                })
+            })
+            .collect()
     }
 }
 
