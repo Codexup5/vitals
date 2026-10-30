@@ -12,8 +12,12 @@ use super::{Hive, OptimizeError, Put, RegWrite, Write};
 
 pub const ACTION: &str = "optimize-apply";
 
-/// A key a revert deletes has at least this many parts: never `SOFTWARE`, `SOFTWARE\Policies` or the like.
-const MIN_DELETED_DEPTH: usize = 4;
+/// The only machine keys a write may create, so the only ones a revert deletes: policy keys a fresh Windows may
+/// lack. Every other catalog key is part of Windows and is never deleted, whatever a journal row asks.
+const CREATABLE: [&str; 2] = [
+    r"SOFTWARE\Policies\Microsoft\Windows\Explorer",
+    r"SOFTWARE\Policies\Microsoft\Windows\System",
+];
 
 /// What the elevated process is asked to do.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -40,12 +44,9 @@ pub trait AdminMachine {
     fn restore_point(&mut self, enable_protection: bool) -> RestorePoint;
 }
 
-/// `key` is the value's key or one above it, deep enough to be one a write created.
-pub fn is_on_path(key: &str, value_key: &str) -> bool {
-    let key = key.to_ascii_lowercase();
-    let value_key = value_key.to_ascii_lowercase();
-    let is_ancestor = value_key == key || value_key.starts_with(&format!("{key}\\"));
-    is_ancestor && key.split('\\').count() >= MIN_DELETED_DEPTH
+/// `key` is the value's own key, and one the catalog lets a write create.
+pub fn may_delete(key: &str, value_key: &str) -> bool {
+    key.eq_ignore_ascii_case(value_key) && CREATABLE.iter().any(|one| one.eq_ignore_ascii_case(key))
 }
 
 fn check_write(write: &RegWrite) -> Result<(), OptimizeError> {
@@ -74,7 +75,7 @@ fn check_write(write: &RegWrite) -> Result<(), OptimizeError> {
         Put::Data { data: given } if !given.same_type(&data) => {
             refuse("another type than the catalog's")
         }
-        Put::DeleteKey { key } if !is_on_path(key, at.key) => refuse("a key off the value's path"),
+        Put::DeleteKey { key } if !may_delete(key, at.key) => refuse("a key Windows owns"),
         Put::Data { .. } | Put::DeleteValue | Put::DeleteKey { .. } => Ok(()),
     }
 }
@@ -285,6 +286,24 @@ mod tests {
         // Never a root a catalog key merely sits under
         assert!(check(&request(vec![wider(r"SOFTWARE\Policies")])).is_err());
         assert!(check(&request(vec![wider("SOFTWARE")])).is_err());
+    }
+
+    #[test]
+    fn a_key_of_windows_is_never_deleted() {
+        let graphics = hags(Put::DeleteKey {
+            key: GRAPHICS.to_owned(),
+        });
+        assert!(check(&request(vec![graphics])).is_err());
+        let file_system = write(
+            TweakId::LongPaths,
+            Hive::Machine,
+            r"SYSTEM\CurrentControlSet\Control\FileSystem",
+            "LongPathsEnabled",
+            Put::DeleteKey {
+                key: r"SYSTEM\CurrentControlSet\Control\FileSystem".to_owned(),
+            },
+        );
+        assert!(check(&request(vec![file_system])).is_err());
     }
 
     #[test]
