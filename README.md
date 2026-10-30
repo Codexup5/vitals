@@ -24,6 +24,7 @@ is unknown: "More info" → "Run anyway". Checked on Windows 11 only.
 | Network              | Latency, loss and jitter to the router and to the internet every 5 minutes; the link speed; a speed test on its button; the devices on the network      |
 | Startup and services | Programs that start at sign-in with their cost, publisher and signature; third-party services. Off with a one-click way back; Microsoft's are view only |
 | Sensors              | CPU load and clock, memory, NVIDIA cards through `nvidia-smi`; the CPU temperature, power and fans from your LibreHardwareMonitor; a chart and history  |
+| Optimization         | Windows settings from a catalog in the exe: a base set and the focuses Games, Development, Work, fitted to the hardware; a preview "was → becomes", the journal, a revert per run |
 | Settings             | The start with Windows, in the tray (off by default); Telegram alerts through your own bot (off by default); Claude Code                                |
 
 The window is in Russian or English, by the language of Windows, with a dark (Catppuccin Mocha) and a light (Latte)
@@ -33,6 +34,9 @@ theme. Closed, it stays in the tray, and only the light collection runs, every 5
 
 - It runs as a normal user. An admin action is the same exe under UAC for that one action; "No" means it does not run.
 - It never reboots the PC, installs no drivers, never touches HVCI, Defender, the pagefile or Microsoft services.
+- The optimizer changes only the settings of its catalog in the exe. Each old value is in its journal before the
+  write, and "Revert" puts it back exactly. A run with an admin setting asks for UAC once and makes a restore point
+  first; "No" changes nothing, the user's own settings included. It never reboots: it says when one is needed.
 - The cleanup deletes only inside allowed folders, never follows links or junctions, deletes exactly what its preview
   showed and skips what changed since. Never: the Recycle Bin, Downloads, Documents, browser profiles.
 

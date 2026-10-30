@@ -13,6 +13,7 @@ mod legacy;
 mod logging;
 mod mcp;
 mod network;
+mod optimize;
 mod process;
 mod runners;
 mod scan;
@@ -109,7 +110,13 @@ pub fn run() -> ExitCode {
             commands::sensors::sensors_live,
             commands::sensors::sensors_history,
             commands::startup::autostart_status,
-            commands::startup::autostart_set
+            commands::startup::autostart_set,
+            commands::optimize::optimize_overview,
+            commands::optimize::optimize_preview,
+            commands::optimize::optimize_apply,
+            commands::optimize::optimize_journal,
+            commands::optimize::optimize_revert,
+            commands::optimize::explorer_restart
         ])
         .setup(move |app| {
             #[cfg(windows)]

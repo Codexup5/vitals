@@ -19,7 +19,10 @@ pub enum Elevated {
     Exited(u32),
     /// The user said no at the UAC prompt
     Declined,
+    /// It never started
     Failed(String),
+    /// It started and was lost track of: what it did is unknown
+    Lost(String),
 }
 
 /// Starts `exe` with `parameters` under UAC ("runas") and waits for it to end.
@@ -57,7 +60,7 @@ pub fn run_elevated(exe: &Path, parameters: &str) -> Elevated {
         tracing::warn!("could not close the elevated process handle: {error}");
     }
     if waited != WAIT_OBJECT_0 || read.is_err() {
-        return Elevated::Failed("the elevated action did not report back".to_owned());
+        return Elevated::Lost("the elevated action did not report back".to_owned());
     }
     Elevated::Exited(code)
 }

@@ -5,6 +5,7 @@ mod disks;
 mod errors;
 mod layout;
 mod network;
+mod optimize;
 mod runners;
 mod sensors;
 mod settings;
@@ -36,6 +37,7 @@ pub fn App() -> impl IntoView {
                     <Route path=path!("network") view=network::NetworkPage />
                     <Route path=path!("sensors") view=sensors::SensorsPage />
                     <Route path=path!("startup") view=startup::StartupPage />
+                    <Route path=path!("optimize") view=optimize::OptimizePage />
                     <Route path=path!("settings") view=settings::SettingsPage />
                     <Route path=path!(":module") view=ModuleRoute />
                 </ParentRoute>

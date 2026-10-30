@@ -6,7 +6,7 @@
     reason = "the catalog quotes interface words, not code"
 )]
 
-use vitals_ipc::{CandidateKind, Category, FeedKind};
+use vitals_ipc::{CandidateKind, Category, FeedKind, TweakId};
 
 #[derive(Debug)]
 pub struct Texts {
@@ -24,6 +24,7 @@ pub struct Texts {
     pub network: NetworkPage,
     pub sensors: SensorsPage,
     pub startup: StartupPage,
+    pub optimize: OptimizePage,
     pub settings: SettingsPage,
     /// Short month names, January first
     pub months: [&'static str; 12],
@@ -66,6 +67,7 @@ pub struct Modules {
     pub startup: &'static str,
     pub updates: &'static str,
     pub network: &'static str,
+    pub optimize: &'static str,
 }
 
 #[derive(Debug)]
@@ -497,6 +499,139 @@ pub struct StartupPage {
 }
 
 #[derive(Debug)]
+pub struct TweakText {
+    pub title: &'static str,
+    pub hint: &'static str,
+}
+
+/// One text per setting of the catalog; `of` is exhaustive, so a new setting does not compile without its text.
+#[derive(Debug)]
+pub struct TweakTexts {
+    pub advertising_id: TweakText,
+    pub tips: TweakText,
+    pub start_recommendations: TweakText,
+    pub file_extensions: TweakText,
+    pub explorer_this_pc: TweakText,
+    pub start_web_search: TweakText,
+    pub tailored_experiences: TweakText,
+    pub diagnostic_data: TweakText,
+    pub activity_history: TweakText,
+    pub classic_context_menu: TweakText,
+    pub fast_startup_off: TweakText,
+    pub game_mode: TweakText,
+    pub hags: TweakText,
+    pub windowed_optimizations: TweakText,
+    pub pointer_precision_off: TweakText,
+    pub power_scheme: TweakText,
+    pub end_task: TweakText,
+    pub long_paths: TweakText,
+    pub clipboard_history: TweakText,
+}
+
+impl TweakTexts {
+    pub const fn of(&self, id: TweakId) -> &TweakText {
+        match id {
+            TweakId::AdvertisingId => &self.advertising_id,
+            TweakId::Tips => &self.tips,
+            TweakId::StartRecommendations => &self.start_recommendations,
+            TweakId::FileExtensions => &self.file_extensions,
+            TweakId::ExplorerThisPc => &self.explorer_this_pc,
+            TweakId::StartWebSearch => &self.start_web_search,
+            TweakId::TailoredExperiences => &self.tailored_experiences,
+            TweakId::DiagnosticData => &self.diagnostic_data,
+            TweakId::ActivityHistory => &self.activity_history,
+            TweakId::ClassicContextMenu => &self.classic_context_menu,
+            TweakId::FastStartupOff => &self.fast_startup_off,
+            TweakId::GameMode => &self.game_mode,
+            TweakId::Hags => &self.hags,
+            TweakId::WindowedOptimizations => &self.windowed_optimizations,
+            TweakId::PointerPrecisionOff => &self.pointer_precision_off,
+            TweakId::PowerScheme => &self.power_scheme,
+            TweakId::EndTask => &self.end_task,
+            TweakId::LongPaths => &self.long_paths,
+            TweakId::ClipboardHistory => &self.clipboard_history,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct OptimizePage {
+    pub eyebrow: &'static str,
+    pub title: &'static str,
+    pub hint: &'static str,
+    pub refresh: &'static str,
+    pub focuses: &'static str,
+    pub focus_base: &'static str,
+    pub focus_games: &'static str,
+    pub focus_development: &'static str,
+    pub focus_work: &'static str,
+    pub machine: fn(&str, &str, &str, u32) -> String,
+    pub other_cpu: &'static str,
+    pub laptop: &'static str,
+    pub desktop: &'static str,
+    pub summary: fn(usize, usize) -> String,
+    pub done: &'static str,
+    pub todo: &'static str,
+    pub unreadable: &'static str,
+    pub admin: &'static str,
+    pub effect_now: &'static str,
+    pub effect_explorer: &'static str,
+    pub effect_game: &'static str,
+    pub effect_programs: &'static str,
+    pub effect_shutdown: &'static str,
+    pub effect_reboot: &'static str,
+    pub hidden_title: &'static str,
+    pub needs_hags: &'static str,
+    pub needs_hibernation: &'static str,
+    pub needs_high_performance: &'static str,
+    pub defaults: &'static str,
+    pub maximum: &'static str,
+    pub values: &'static str,
+    pub preview: &'static str,
+    pub nothing_checked: &'static str,
+    pub preview_title: &'static str,
+    pub admin_group: &'static str,
+    pub user_group: &'static str,
+    pub absent: &'static str,
+    pub already: fn(&str) -> String,
+    pub uac_line: &'static str,
+    pub no_uac_line: &'static str,
+    pub protection: &'static str,
+    pub apply: fn(usize) -> String,
+    pub cancel: &'static str,
+    pub applying: &'static str,
+    pub declined: &'static str,
+    pub nothing_changed: &'static str,
+    pub applied: fn(usize, usize) -> String,
+    pub reverted_count: fn(usize, usize) -> String,
+    pub outcome_title: &'static str,
+    pub restore_created: fn(&str) -> String,
+    pub restore_kept: fn(&str) -> String,
+    pub restore_off: &'static str,
+    pub restore_unconfirmed: &'static str,
+    pub restore_failed: &'static str,
+    pub item_failed: &'static str,
+    pub apply_failed: &'static str,
+    pub then_explorer: &'static str,
+    pub then_game: &'static str,
+    pub then_programs: &'static str,
+    pub then_shutdown: &'static str,
+    pub then_reboot: &'static str,
+    pub restart_explorer: &'static str,
+    pub restarting: &'static str,
+    pub restarted: &'static str,
+    pub failed: &'static str,
+    pub journal_title: &'static str,
+    pub journal_hint: &'static str,
+    pub journal_empty: &'static str,
+    pub journal_run: fn(&str, usize) -> String,
+    pub reverted: &'static str,
+    pub revert: &'static str,
+    pub reverting: &'static str,
+    pub tweaks: TweakTexts,
+}
+
+#[derive(Debug)]
 pub struct SettingsPage {
     pub eyebrow: &'static str,
     pub title: &'static str,
@@ -609,6 +744,7 @@ pub static RU: Texts = Texts {
         startup: "Автозагрузка и службы",
         updates: "Обновления",
         network: "Сеть",
+        optimize: "Оптимизация",
     },
     module_page: ModulePage {
         eyebrow: "В плане",
@@ -1104,6 +1240,174 @@ pub static RU: Texts = Texts {
         microsoft_only: "Служба Microsoft или Windows — только просмотр",
         nothing_to_change: "Сама с Windows не стартует",
     },
+    optimize: OptimizePage {
+        eyebrow: "Настройки Windows из каталога · журнал · откат",
+        title: "Оптимизация",
+        hint: "Меняется только то, что есть в каталоге внутри Vitals. Прежнее значение каждой настройки записывается в журнал до изменения, и «Вернуть» ставит его обратно точно. Перезагрузку Vitals не делает никогда — только подскажет, когда она нужна.",
+        refresh: "Обновить",
+        focuses: "Фокусы",
+        focus_base: "Основа",
+        focus_games: "Игры",
+        focus_development: "Разработка",
+        focus_work: "Работа",
+        machine: |vendor, kind, edition, build| {
+            format!("Процессор {vendor} · {kind} · Windows {edition}, сборка {build}")
+        },
+        other_cpu: "другой",
+        laptop: "ноутбук",
+        desktop: "настольный",
+        summary: |todo, done| format!("Можно применить: {todo} · уже сделано: {done}"),
+        done: "уже так",
+        todo: "можно применить",
+        unreadable: "не читается",
+        admin: "права администратора",
+        effect_now: "сразу",
+        effect_explorer: "после перезапуска Проводника",
+        effect_game: "со следующего запуска игры",
+        effect_programs: "в программах, запущенных после",
+        effect_shutdown: "со следующего выключения",
+        effect_reboot: "после перезагрузки",
+        hidden_title: "Недоступно на этом ПК",
+        needs_hags: "видеокарта или драйвер не поддерживают планирование GPU",
+        needs_hibernation: "гибернация выключена — быстрого запуска нет",
+        needs_high_performance: "Windows скрыла схему «Высокая производительность»",
+        defaults: "По умолчанию",
+        maximum: "Максимум",
+        values: "Значения",
+        preview: "Предпросмотр",
+        nothing_checked: "Отметьте хотя бы одну настройку, которой ещё нет.",
+        preview_title: "Что изменится",
+        admin_group: "С правами администратора",
+        user_group: "Без прав",
+        absent: "нет",
+        already: |titles| format!("Уже так, менять не нужно: {titles}"),
+        uac_line: "Windows один раз спросит права администратора. Перед изменениями будет точка восстановления — Windows делает не больше одной в сутки. «Нет» в окне Windows — ничего не меняется.",
+        no_uac_line: "Права не нужны. Точки восстановления не будет: вернуть можно из журнала ниже.",
+        protection: "Включить защиту системы на C:, если она выключена",
+        apply: |count| format!("Применить ({count})"),
+        cancel: "Отмена",
+        applying: "Применяю…",
+        declined: "Права не дали — ничего не изменилось.",
+        nothing_changed: "Всё отмеченное уже так — ничего не изменилось.",
+        applied: |done, failed| {
+            if failed == 0 {
+                format!("Применено настроек: {done}.")
+            } else {
+                format!("Применено: {done}, не удалось: {failed}.")
+            }
+        },
+        reverted_count: |done, failed| {
+            if failed == 0 {
+                format!("Возвращено настроек: {done}.")
+            } else {
+                format!("Возвращено: {done}, не удалось: {failed}.")
+            }
+        },
+        outcome_title: "Итог",
+        restore_created: |time| format!("Точка восстановления создана: {time}."),
+        restore_kept: |time| {
+            format!("Новую точку Windows не сделала: за сутки уже есть точка от {time}.")
+        },
+        restore_off: "Защита системы выключена — точки восстановления нет. Вернуть можно из журнала.",
+        restore_unconfirmed: "Windows приняла запрос на точку восстановления, но список точек прочитать не удалось — проверьте в «Защите системы».",
+        restore_failed: "Точку восстановления создать не удалось — подробности в журнале Vitals. Вернуть можно из журнала ниже.",
+        item_failed: "не удалось, подробности в журнале Vitals",
+        apply_failed: "Ответа не пришло. Изменения, которые успели записаться, — в журнале ниже, их можно вернуть.",
+        then_explorer: "Перезапустите Проводник — кнопка рядом.",
+        then_game: "В играх — со следующего запуска.",
+        then_programs: "В уже открытых программах — после их перезапуска.",
+        then_shutdown: "Со следующего выключения ПК.",
+        then_reboot: "Нужна перезагрузка — сделайте её, когда удобно.",
+        restart_explorer: "Перезапустить Проводник",
+        restarting: "Перезапускаю…",
+        restarted: "Проводник перезапущен.",
+        failed: "Не получилось. Подробности — в журнале Vitals.",
+        journal_title: "Журнал",
+        journal_hint: "Каждый запуск со старыми значениями. «Вернуть» ставит их обратно, последнее изменение первым.",
+        journal_empty: "Оптимизация ещё не запускалась.",
+        journal_run: |time, count| format!("{time} · изменений: {count}"),
+        reverted: "возвращено",
+        revert: "Вернуть",
+        reverting: "Возвращаю…",
+        tweaks: TweakTexts {
+            advertising_id: TweakText {
+                title: "Рекламный идентификатор выключен",
+                hint: "Приложения не получают идентификатор для персональной рекламы.",
+            },
+            tips: TweakText {
+                title: "Без советов и приветственных экранов",
+                hint: "Windows не показывает советы, предложения и экраны «давайте закончим настройку».",
+            },
+            start_recommendations: TweakText {
+                title: "«Пуск» без рекомендаций",
+                hint: "Убирает рекомендации и недавние файлы из «Пуска»; недавние файлы пропадут и из списков переходов.",
+            },
+            file_extensions: TweakText {
+                title: "Расширения файлов видны",
+                hint: "Проводник показывает .exe, .txt и другие расширения — легче заметить подделку.",
+            },
+            explorer_this_pc: TweakText {
+                title: "Проводник открывается на «Этот компьютер»",
+                hint: "Вместо «Главной» с недавними файлами — диски и папки.",
+            },
+            start_web_search: TweakText {
+                title: "Поиск в «Пуске» без интернета",
+                hint: "Поиск ищет только на ПК, без подсказок Bing. Это политика для всех пользователей ПК.",
+            },
+            tailored_experiences: TweakText {
+                title: "Без «персонализированных возможностей»",
+                hint: "Microsoft не подбирает советы и рекламу по диагностическим данным.",
+            },
+            diagnostic_data: TweakText {
+                title: "Только обязательные диагностические данные",
+                hint: "Windows отправляет Microsoft минимальный набор — как «Необязательные данные: выкл.» в Параметрах.",
+            },
+            activity_history: TweakText {
+                title: "История действий выключена",
+                hint: "Windows не собирает журнал открытых приложений и файлов. Политика для всех пользователей ПК.",
+            },
+            classic_context_menu: TweakText {
+                title: "Классическое контекстное меню",
+                hint: "Правый клик в Проводнике сразу открывает полное меню, без «Показать дополнительные параметры».",
+            },
+            fast_startup_off: TweakText {
+                title: "Быстрый запуск выключен",
+                hint: "Выключение становится полным: драйверы и обновления применяются чисто. Включение — на пару секунд дольше.",
+            },
+            game_mode: TweakText {
+                title: "Игровой режим включён",
+                hint: "Во время игры Windows не ставит обновления драйверов и не шлёт уведомления о перезагрузке.",
+            },
+            hags: TweakText {
+                title: "Аппаратное планирование GPU",
+                hint: "Видеокарта сама управляет своей памятью — меньше задержка в играх. Как переключатель в «Параметры → Графика».",
+            },
+            windowed_optimizations: TweakText {
+                title: "Оптимизация оконных игр",
+                hint: "Игры в окне и без рамки получают меньшую задержку и VRR. Остальные настройки графики не трогаются.",
+            },
+            pointer_precision_off: TweakText {
+                title: "Без «повышенной точности указателя»",
+                hint: "Курсор движется ровно за мышью, без ускорения Windows — как прицел в играх.",
+            },
+            power_scheme: TweakText {
+                title: "Схема питания под это железо",
+                hint: "«Сбалансированная» для AMD и ноутбуков — их ускорение работает в ней; «Высокая производительность» для настольного Intel.",
+            },
+            end_task: TweakText {
+                title: "«Завершить задачу» на панели задач",
+                hint: "Правый клик по программе на панели задач может закрыть её, без Диспетчера задач.",
+            },
+            long_paths: TweakText {
+                title: "Пути длиннее 260 символов",
+                hint: "Программы, которые это поддерживают (git, Node, Python), работают с глубокими папками.",
+            },
+            clipboard_history: TweakText {
+                title: "Журнал буфера обмена (Win+V)",
+                hint: "Win+V показывает последние скопированные фрагменты. Синхронизация между устройствами не включается.",
+            },
+        },
+    },
     settings: SettingsPage {
         eyebrow: "Настройки · хранятся только на этом ПК",
         title: "Настройки",
@@ -1222,6 +1526,7 @@ pub static EN: Texts = Texts {
         startup: "Startup and services",
         updates: "Updates",
         network: "Network",
+        optimize: "Optimization",
     },
     module_page: ModulePage {
         eyebrow: "Planned",
@@ -1714,6 +2019,174 @@ pub static EN: Texts = Texts {
         changed_from: |start| format!("Vitals changed the start, it was: {start}"),
         microsoft_only: "A service of Microsoft or Windows: view only",
         nothing_to_change: "Does not start with Windows by itself",
+    },
+    optimize: OptimizePage {
+        eyebrow: "Windows settings from a catalog · journal · revert",
+        title: "Optimization",
+        hint: "Only what the catalog inside Vitals names is changed. The old value of each setting goes to the journal before the change, and \"Revert\" puts it back exactly. Vitals never reboots the PC: it only tells you when a reboot is needed.",
+        refresh: "Refresh",
+        focuses: "Focuses",
+        focus_base: "Base",
+        focus_games: "Games",
+        focus_development: "Development",
+        focus_work: "Work",
+        machine: |vendor, kind, edition, build| {
+            format!("{vendor} processor · {kind} · Windows {edition}, build {build}")
+        },
+        other_cpu: "Other",
+        laptop: "laptop",
+        desktop: "desktop",
+        summary: |todo, done| format!("Can apply: {todo} · already done: {done}"),
+        done: "already set",
+        todo: "can apply",
+        unreadable: "cannot be read",
+        admin: "admin rights",
+        effect_now: "right away",
+        effect_explorer: "after an Explorer restart",
+        effect_game: "from the next game start",
+        effect_programs: "in programs started after",
+        effect_shutdown: "from the next shutdown",
+        effect_reboot: "after a reboot",
+        hidden_title: "Not available on this PC",
+        needs_hags: "the graphics card or its driver cannot schedule the GPU",
+        needs_hibernation: "hibernation is off, so there is no fast startup",
+        needs_high_performance: "Windows hides the High performance scheme",
+        defaults: "Defaults",
+        maximum: "Maximum",
+        values: "Values",
+        preview: "Preview",
+        nothing_checked: "Check at least one setting that is not set yet.",
+        preview_title: "What changes",
+        admin_group: "With admin rights",
+        user_group: "Without rights",
+        absent: "absent",
+        already: |titles| format!("Already set, nothing to change: {titles}"),
+        uac_line: "Windows asks for admin rights once. A restore point comes first: Windows makes at most one a day. \"No\" at the Windows prompt changes nothing.",
+        no_uac_line: "No rights needed. No restore point either: the journal below is the way back.",
+        protection: "Turn System Protection on for C: if it is off",
+        apply: |count| format!("Apply ({count})"),
+        cancel: "Cancel",
+        applying: "Applying…",
+        declined: "No admin rights were given: nothing changed.",
+        nothing_changed: "Everything checked is already set: nothing changed.",
+        applied: |done, failed| {
+            if failed == 0 {
+                format!("Settings applied: {done}.")
+            } else {
+                format!("Applied: {done}, failed: {failed}.")
+            }
+        },
+        reverted_count: |done, failed| {
+            if failed == 0 {
+                format!("Settings reverted: {done}.")
+            } else {
+                format!("Reverted: {done}, failed: {failed}.")
+            }
+        },
+        outcome_title: "Outcome",
+        restore_created: |time| format!("Restore point created: {time}."),
+        restore_kept: |time| {
+            format!("Windows made no new point: one from {time} is less than a day old.")
+        },
+        restore_off: "System Protection is off, so there is no restore point. The journal is the way back.",
+        restore_unconfirmed: "Windows took the restore point request, but the list of points could not be read: check System Protection.",
+        restore_failed: "The restore point could not be created; the details are in the Vitals log. The journal below is the way back.",
+        item_failed: "failed, the details are in the Vitals log",
+        apply_failed: "No answer came. Whatever was written is in the journal below and can be reverted.",
+        then_explorer: "Restart Explorer: the button is next to this.",
+        then_game: "In games: from their next start.",
+        then_programs: "In programs already open: after they restart.",
+        then_shutdown: "From the next shutdown of the PC.",
+        then_reboot: "A reboot is needed: do it when it suits you.",
+        restart_explorer: "Restart Explorer",
+        restarting: "Restarting…",
+        restarted: "Explorer restarted.",
+        failed: "That did not work. The details are in the Vitals log.",
+        journal_title: "Journal",
+        journal_hint: "Every run with the old values. \"Revert\" puts them back, the last change first.",
+        journal_empty: "The optimizer has not run yet.",
+        journal_run: |time, count| format!("{time} · changes: {count}"),
+        reverted: "reverted",
+        revert: "Revert",
+        reverting: "Reverting…",
+        tweaks: TweakTexts {
+            advertising_id: TweakText {
+                title: "Advertising ID off",
+                hint: "Apps get no ID for personalized ads.",
+            },
+            tips: TweakText {
+                title: "No tips or welcome screens",
+                hint: "Windows shows no tips, suggestions or \"let's finish setting up\" screens.",
+            },
+            start_recommendations: TweakText {
+                title: "Start without recommendations",
+                hint: "Removes recommendations and recent files from Start; recent files also leave the jump lists.",
+            },
+            file_extensions: TweakText {
+                title: "File extensions shown",
+                hint: "File Explorer shows .exe, .txt and other extensions: a fake file is easier to spot.",
+            },
+            explorer_this_pc: TweakText {
+                title: "File Explorer opens on This PC",
+                hint: "Drives and folders instead of Home with recent files.",
+            },
+            start_web_search: TweakText {
+                title: "Start search without the web",
+                hint: "Search looks on the PC only, without Bing suggestions. A policy for every user of the PC.",
+            },
+            tailored_experiences: TweakText {
+                title: "No tailored experiences",
+                hint: "Microsoft picks no tips or ads from diagnostic data.",
+            },
+            diagnostic_data: TweakText {
+                title: "Required diagnostic data only",
+                hint: "Windows sends Microsoft the minimum, as \"Optional data: off\" in Settings.",
+            },
+            activity_history: TweakText {
+                title: "Activity history off",
+                hint: "Windows keeps no history of the apps and files you open. A policy for every user of the PC.",
+            },
+            classic_context_menu: TweakText {
+                title: "Classic context menu",
+                hint: "A right click in File Explorer opens the full menu, without \"Show more options\".",
+            },
+            fast_startup_off: TweakText {
+                title: "Fast startup off",
+                hint: "A shutdown becomes a full one: drivers and updates apply cleanly. Starting takes a few seconds longer.",
+            },
+            game_mode: TweakText {
+                title: "Game Mode on",
+                hint: "While you play, Windows installs no driver updates and sends no restart notifications.",
+            },
+            hags: TweakText {
+                title: "Hardware-accelerated GPU scheduling",
+                hint: "The graphics card manages its own memory: lower latency in games. The switch of Settings → Graphics.",
+            },
+            windowed_optimizations: TweakText {
+                title: "Optimizations for windowed games",
+                hint: "Windowed and borderless games get lower latency and VRR. Other graphics settings stay as they are.",
+            },
+            pointer_precision_off: TweakText {
+                title: "Enhance pointer precision off",
+                hint: "The cursor follows the mouse exactly, without Windows' acceleration, as an aim in games.",
+            },
+            power_scheme: TweakText {
+                title: "Power scheme for this hardware",
+                hint: "Balanced for AMD and laptops, whose boost works in it; High performance for an Intel desktop.",
+            },
+            end_task: TweakText {
+                title: "End task in the taskbar",
+                hint: "A right click on a program in the taskbar can close it, without Task Manager.",
+            },
+            long_paths: TweakText {
+                title: "Paths longer than 260 characters",
+                hint: "Programs that support it (git, Node, Python) work in deep folders.",
+            },
+            clipboard_history: TweakText {
+                title: "Clipboard history (Win+V)",
+                hint: "Win+V shows what you copied lately. Sync across devices stays off.",
+            },
+        },
     },
     settings: SettingsPage {
         eyebrow: "Settings · kept on this PC only",
