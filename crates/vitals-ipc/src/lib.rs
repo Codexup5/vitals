@@ -50,6 +50,12 @@ pub mod command {
     pub const SENSORS_HISTORY: &str = "sensors_history";
     pub const AUTOSTART_STATUS: &str = "autostart_status";
     pub const AUTOSTART_SET: &str = "autostart_set";
+    pub const OPTIMIZE_OVERVIEW: &str = "optimize_overview";
+    pub const OPTIMIZE_PREVIEW: &str = "optimize_preview";
+    pub const OPTIMIZE_APPLY: &str = "optimize_apply";
+    pub const OPTIMIZE_JOURNAL: &str = "optimize_journal";
+    pub const OPTIMIZE_REVERT: &str = "optimize_revert";
+    pub const EXPLORER_RESTART: &str = "explorer_restart";
     pub const LOG_UI_ERROR: &str = "log_ui_error";
 }
 
@@ -1180,6 +1186,306 @@ pub struct SensorsLive {
     pub points: Vec<SensorPoint>,
 }
 
+/// A group of the optimizer's settings: the base is always in the plan, the focuses are the user's choice.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Focus {
+    Base,
+    Games,
+    Development,
+    Work,
+}
+
+impl Focus {
+    pub const ALL: [Self; 4] = [Self::Base, Self::Games, Self::Development, Self::Work];
+}
+
+/// Who writes a setting: the normal process (HKCU) or `--elevated` under UAC (HKLM).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Rights {
+    User,
+    Admin,
+}
+
+/// When a change shows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Effect {
+    Now,
+    /// After "Restart Explorer" or the next sign-in
+    ExplorerRestart,
+    NextGameStart,
+    /// Programs started after the change
+    NewPrograms,
+    NextShutdown,
+    /// The panel never reboots: the user does, when it suits them
+    Reboot,
+}
+
+/// A setting of the catalog. The wire name is a stable slug: it is what the journal keeps, so a renamed setting keeps
+/// its old slug as an alias.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum TweakId {
+    #[serde(rename = "base.advertising-id")]
+    AdvertisingId,
+    #[serde(rename = "base.tips")]
+    Tips,
+    #[serde(rename = "base.start-recommendations")]
+    StartRecommendations,
+    #[serde(rename = "base.file-extensions")]
+    FileExtensions,
+    #[serde(rename = "base.explorer-this-pc")]
+    ExplorerThisPc,
+    #[serde(rename = "base.start-web-search")]
+    StartWebSearch,
+    #[serde(rename = "base.tailored-experiences")]
+    TailoredExperiences,
+    #[serde(rename = "base.diagnostic-data")]
+    DiagnosticData,
+    #[serde(rename = "base.activity-history")]
+    ActivityHistory,
+    #[serde(rename = "base.classic-context-menu")]
+    ClassicContextMenu,
+    #[serde(rename = "base.fast-startup-off")]
+    FastStartupOff,
+    #[serde(rename = "games.game-mode")]
+    GameMode,
+    #[serde(rename = "games.hags")]
+    Hags,
+    #[serde(rename = "games.windowed-optimizations")]
+    WindowedOptimizations,
+    #[serde(rename = "games.pointer-precision-off")]
+    PointerPrecisionOff,
+    #[serde(rename = "games.power-scheme")]
+    PowerScheme,
+    #[serde(rename = "dev.end-task")]
+    EndTask,
+    #[serde(rename = "dev.long-paths")]
+    LongPaths,
+    #[serde(rename = "work.clipboard-history")]
+    ClipboardHistory,
+}
+
+impl TweakId {
+    pub const ALL: [Self; 19] = [
+        Self::AdvertisingId,
+        Self::Tips,
+        Self::StartRecommendations,
+        Self::FileExtensions,
+        Self::ExplorerThisPc,
+        Self::StartWebSearch,
+        Self::TailoredExperiences,
+        Self::DiagnosticData,
+        Self::ActivityHistory,
+        Self::ClassicContextMenu,
+        Self::FastStartupOff,
+        Self::GameMode,
+        Self::Hags,
+        Self::WindowedOptimizations,
+        Self::PointerPrecisionOff,
+        Self::PowerScheme,
+        Self::EndTask,
+        Self::LongPaths,
+        Self::ClipboardHistory,
+    ];
+}
+
+/// What a machine must have for a setting to be offered; an unmet one hides the setting with this reason.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Condition {
+    /// A graphics card reports hardware-accelerated GPU scheduling
+    HagsSupported,
+    /// Fast startup lives on the hibernation file
+    Hibernation,
+    /// The High performance scheme exists: Windows hides it on some machines
+    HighPerformanceScheme,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CpuVendor {
+    Amd,
+    Intel,
+    Other,
+}
+
+/// What the optimizer knows of the machine, read without admin rights.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HardwareFacts {
+    pub cpu_vendor: CpuVendor,
+    /// A system battery
+    pub is_laptop: bool,
+    /// The conditions of the catalog this machine meets
+    pub met: Vec<Condition>,
+    /// `Professional`, `Core`: the `EditionID` of the registry
+    pub edition: String,
+    pub build: u32,
+}
+
+/// Whether a setting already holds on this machine.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TweakState {
+    Done,
+    /// At least one of its values is not the target yet
+    Todo,
+}
+
+/// One value a setting writes: its name, what it is now, what it becomes. `None` is "absent".
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ValueChange {
+    /// `HKCU\…\Explorer\Advanced\HideFileExt`, or the active power scheme
+    pub name: String,
+    pub was: Option<String>,
+    pub becomes: Option<String>,
+}
+
+/// A setting of the catalog as it stands on this machine.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TweakRow {
+    pub id: TweakId,
+    pub focus: Focus,
+    pub rights: Rights,
+    pub effect: Effect,
+    pub state: TweakState,
+    /// Checked when the section opens
+    pub is_default: bool,
+    /// The condition this machine does not meet: the row is hidden with it as the reason
+    pub unmet: Option<Condition>,
+    pub values: Vec<ValueChange>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OptimizeOverview {
+    pub facts: HardwareFacts,
+    /// Every setting of the catalog, in catalog order
+    pub rows: Vec<TweakRow>,
+}
+
+/// The settings the user checked. Apply re-reads the machine and plans again from these.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PreviewArgs {
+    pub checked: Vec<TweakId>,
+    /// Turn System Protection on for drive C: in the same UAC when it is off
+    pub enable_protection: bool,
+}
+
+/// A setting the run changes, with every value it writes.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlanItem {
+    pub id: TweakId,
+    pub effect: Effect,
+    pub changes: Vec<ValueChange>,
+}
+
+/// What one "Apply" would do: admin items under one UAC, then user items.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OptimizePlan {
+    pub admin: Vec<PlanItem>,
+    pub user: Vec<PlanItem>,
+    /// Checked but already holding: nothing is written for them
+    pub already_done: Vec<TweakId>,
+}
+
+impl OptimizePlan {
+    /// The run asks for admin rights, once, and makes a restore point first
+    #[must_use]
+    pub fn needs_uac(&self) -> bool {
+        !self.admin.is_empty()
+    }
+}
+
+/// What became of the restore point of a run with admin items.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "kind")]
+pub enum RestorePoint {
+    /// Unix seconds
+    Created {
+        time: i64,
+    },
+    /// Windows makes at most one point a day and kept this one
+    Kept {
+        time: i64,
+    },
+    /// System Protection is off and the user did not ask to turn it on
+    ProtectionOff,
+    Failed {
+        message: String,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "kind")]
+pub enum ItemResult {
+    Done,
+    Failed { message: String },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ItemOutcome {
+    pub id: TweakId,
+    pub result: ItemResult,
+}
+
+/// How an apply or a revert ended. Declined at the UAC prompt: nothing changed, user items included.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApplyOutcome {
+    pub outcome: ChangeOutcome,
+    /// The journal run, absent when nothing was written
+    pub run: Option<i64>,
+    pub items: Vec<ItemOutcome>,
+    /// Absent for a run without admin items
+    pub restore_point: Option<RestorePoint>,
+    /// What the user has to do for every change to show, each once
+    pub effects: Vec<Effect>,
+}
+
+/// One value a run changed, as the journal keeps it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JournalChange {
+    pub id: TweakId,
+    pub change: ValueChange,
+    /// Unix seconds
+    pub reverted_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JournalRun {
+    pub run: i64,
+    /// Unix seconds
+    pub time: i64,
+    pub changes: Vec<JournalChange>,
+}
+
+impl JournalRun {
+    /// Every change of the run is back as it was
+    #[must_use]
+    pub fn is_reverted(&self) -> bool {
+        self.changes
+            .iter()
+            .all(|change| change.reverted_at.is_some())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RevertArgs {
+    pub run: i64,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1212,5 +1518,64 @@ mod tests {
         let body: CommandErrorBody =
             serde_json::from_str(r#"{"kind":"storage","message":"locked"}"#).unwrap();
         assert_eq!(body.kind, CommandErrorKind::Storage);
+    }
+
+    #[test]
+    fn a_tweak_id_is_its_slug_on_the_wire() {
+        assert_eq!(
+            serde_json::to_string(&TweakId::Hags).unwrap(),
+            r#""games.hags""#
+        );
+        for id in TweakId::ALL {
+            let json = serde_json::to_string(&id).unwrap();
+            assert_eq!(serde_json::from_str::<TweakId>(&json).unwrap(), id);
+        }
+        assert!(serde_json::from_str::<TweakId>(r#""games.unknown""#).is_err());
+    }
+
+    #[test]
+    fn an_apply_outcome_reads_back() {
+        let outcome = ApplyOutcome {
+            outcome: ChangeOutcome::Done,
+            run: Some(3),
+            items: vec![ItemOutcome {
+                id: TweakId::FileExtensions,
+                result: ItemResult::Failed {
+                    message: "denied".to_owned(),
+                },
+            }],
+            restore_point: Some(RestorePoint::Kept {
+                time: 1_793_300_000,
+            }),
+            effects: vec![Effect::ExplorerRestart],
+        };
+        let json = serde_json::to_value(&outcome).unwrap();
+        assert_eq!(json["restorePoint"]["kind"], "kept");
+        assert_eq!(json["items"][0]["id"], "base.file-extensions");
+        assert_eq!(
+            serde_json::from_value::<ApplyOutcome>(json).unwrap(),
+            outcome
+        );
+    }
+
+    #[test]
+    fn a_run_is_reverted_when_every_change_is() {
+        let change = |reverted_at| JournalChange {
+            id: TweakId::GameMode,
+            change: ValueChange {
+                name: "AutoGameModeEnabled".to_owned(),
+                was: None,
+                becomes: Some("1".to_owned()),
+            },
+            reverted_at,
+        };
+        let mut run = JournalRun {
+            run: 1,
+            time: 0,
+            changes: vec![change(Some(5)), change(None)],
+        };
+        assert!(!run.is_reverted());
+        run.changes[1].reverted_at = Some(6);
+        assert!(run.is_reverted());
     }
 }
