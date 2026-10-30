@@ -6,7 +6,9 @@
 // Until the commands of step 11 call it, the domain is reached only from its tests
 #![allow(dead_code, reason = "wired to the commands in step 11 of the 11a plan")]
 
+pub mod apply;
 pub mod catalog;
+pub mod elevated;
 pub mod plan;
 
 use serde::{Deserialize, Serialize};
