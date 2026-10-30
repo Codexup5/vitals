@@ -10,6 +10,8 @@ pub mod apply;
 pub mod catalog;
 pub mod elevated;
 pub mod plan;
+#[cfg(windows)]
+mod windows;
 
 use serde::{Deserialize, Serialize};
 use vitals_ipc::{Condition, Effect, Focus, Rights, TweakId};
