@@ -5,11 +5,15 @@
 //! written here (`rust.md` §3).
 
 use serde::{Deserialize, Serialize};
-use vitals_ipc::RestorePoint;
+use vitals_ipc::{RestorePoint, Rights};
 
-use super::{OptimizeError, RegWrite};
+use super::catalog::tweak;
+use super::{Hive, OptimizeError, Put, RegWrite, Write};
 
 pub const ACTION: &str = "optimize-apply";
+
+/// A key a revert deletes has at least this many parts: never `SOFTWARE`, `SOFTWARE\Policies` or the like.
+const MIN_DELETED_DEPTH: usize = 4;
 
 /// What the elevated process is asked to do.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -36,21 +40,82 @@ pub trait AdminMachine {
     fn restore_point(&mut self, enable_protection: bool) -> RestorePoint;
 }
 
+/// `key` is the value's key or one above it, deep enough to be one a write created.
+pub fn is_on_path(key: &str, value_key: &str) -> bool {
+    let key = key.to_ascii_lowercase();
+    let value_key = value_key.to_ascii_lowercase();
+    let is_ancestor = value_key == key || value_key.starts_with(&format!("{key}\\"));
+    is_ancestor && key.split('\\').count() >= MIN_DELETED_DEPTH
+}
+
+fn check_write(write: &RegWrite) -> Result<(), OptimizeError> {
+    let refuse = |why: &str| Err(OptimizeError::Refused(format!("{:?}: {why}", write.id)));
+    if write.hive != Hive::Machine {
+        return refuse("the elevated side never writes HKCU");
+    }
+    let tweak = tweak(write.id).ok_or_else(|| OptimizeError::Unknown(format!("{:?}", write.id)))?;
+    if tweak.rights() != Rights::Admin {
+        return refuse("a user item is written by the normal process");
+    }
+    let declared = tweak.writes.iter().find_map(|declared| match declared {
+        Write::Value(at, data)
+            if at.hive == Hive::Machine
+                && at.key.eq_ignore_ascii_case(&write.key)
+                && at.name.eq_ignore_ascii_case(&write.name) =>
+        {
+            Some((at, data.data()))
+        }
+        _ => None,
+    });
+    let Some((at, data)) = declared else {
+        return refuse("not a value of this setting");
+    };
+    match &write.put {
+        Put::Data { data: given } if !given.same_type(&data) => {
+            refuse("another type than the catalog's")
+        }
+        Put::DeleteKey { key } if !is_on_path(key, at.key) => refuse("a key off the value's path"),
+        Put::Data { .. } | Put::DeleteValue | Put::DeleteKey { .. } => Ok(()),
+    }
+}
+
 /// Checks every write of a request against the catalog; one bad write refuses the whole request.
 pub fn check(request: &ElevatedRequest) -> Result<(), OptimizeError> {
-    // A stub until step 8: refuses nothing
-    match request.writes.len() {
-        usize::MAX => Err(OptimizeError::Refused(String::new())),
-        _ => Ok(()),
-    }
+    request.writes.iter().try_for_each(check_write)
 }
 
 /// The checked request on a machine: the point first, then the writes.
 pub fn perform_with(
-    _machine: &mut dyn AdminMachine,
-    _request: &ElevatedRequest,
+    machine: &mut dyn AdminMachine,
+    request: &ElevatedRequest,
 ) -> Result<ElevatedReport, OptimizeError> {
-    Err(OptimizeError::Refused("not built yet".to_owned()))
+    check(request)?;
+    let restore_point = request
+        .restore_point
+        .then(|| machine.restore_point(request.enable_protection));
+    let results = request
+        .writes
+        .iter()
+        .map(|write| machine.write(write))
+        .collect();
+    Ok(ElevatedReport {
+        restore_point,
+        results,
+    })
+}
+
+/// The elevated process: the request in, the report or the reason out.
+pub fn perform(request: &str) -> Result<String, String> {
+    let request: ElevatedRequest =
+        serde_json::from_str(request).map_err(|error| error.to_string())?;
+    let report = run(&request).map_err(|error| error.to_string());
+    serde_json::to_string(&report).map_err(|error| error.to_string())
+}
+
+fn run(_request: &ElevatedRequest) -> Result<ElevatedReport, OptimizeError> {
+    Err(OptimizeError::Registry(
+        "the Windows side of the optimizer comes with step 10".to_owned(),
+    ))
 }
 
 #[cfg(test)]

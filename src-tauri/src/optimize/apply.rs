@@ -2,10 +2,17 @@
 //! under one UAC (the restore point before them), then the user items. A declined prompt stops before any user write
 //! and forgets the run, so "No" changes nothing at all. A revert puts back a run's changes in reverse order.
 
-use vitals_ipc::{ApplyOutcome, HardwareFacts, PreviewArgs, TweakId};
+use std::collections::HashSet;
 
+use vitals_ipc::{
+    ApplyOutcome, ChangeOutcome, Effect, HardwareFacts, ItemOutcome, ItemResult, PreviewArgs,
+    RestorePoint, TweakId,
+};
+
+use super::catalog::tweak;
 use super::elevated::{ElevatedReport, ElevatedRequest};
-use super::{OptimizeError, Reader, RegWrite};
+use super::plan::plan_of;
+use super::{Change, Hive, OptimizeError, Put, Reader, RegWrite};
 use crate::storage::Storage;
 
 /// Why the elevated half of a run did not happen.
@@ -27,25 +34,260 @@ pub trait Machine: Reader {
     fn refresh(&mut self, id: TweakId);
 }
 
+/// One write of a run, tied to its journal row.
+struct Step {
+    row: i64,
+    id: TweakId,
+    action: Action,
+}
+
+enum Action {
+    Registry(RegWrite),
+    Scheme(String),
+}
+
+impl Step {
+    fn is_admin(&self) -> bool {
+        matches!(&self.action, Action::Registry(write) if write.hive == Hive::Machine)
+    }
+}
+
+/// What the steps came to: the rows written, the rows not written, why an item failed.
+#[derive(Default)]
+struct Executed {
+    done: Vec<i64>,
+    skipped: Vec<i64>,
+    failed: Vec<(TweakId, String)>,
+    restore_point: Option<RestorePoint>,
+}
+
+/// The admin steps under one UAC, then the user steps; an item stops at its first failed write.
+fn execute(
+    machine: &mut dyn Machine,
+    steps: &[Step],
+    restore_point: bool,
+    enable_protection: bool,
+) -> Result<Executed, ()> {
+    let mut executed = Executed::default();
+    let (admin, user): (Vec<&Step>, Vec<&Step>) = steps.iter().partition(|step| step.is_admin());
+    if !admin.is_empty() {
+        let request = ElevatedRequest {
+            writes: admin
+                .iter()
+                .filter_map(|step| match &step.action {
+                    Action::Registry(write) => Some(write.clone()),
+                    Action::Scheme(_) => None,
+                })
+                .collect(),
+            restore_point,
+            enable_protection,
+        };
+        match machine.elevate(&request) {
+            Err(Elevation::Declined) => return Err(()),
+            Err(Elevation::Failed(message)) => {
+                for step in &admin {
+                    executed.failed.push((step.id, message.clone()));
+                    executed.skipped.push(step.row);
+                }
+            }
+            Ok(report) => {
+                executed.restore_point = report.restore_point;
+                let mut results = report.results.into_iter();
+                for step in &admin {
+                    match results.next() {
+                        Some(Ok(())) => executed.done.push(step.row),
+                        Some(Err(message)) => {
+                            executed.failed.push((step.id, message));
+                            executed.skipped.push(step.row);
+                        }
+                        None => {
+                            executed.failed.push((step.id, "no report".to_owned()));
+                            executed.skipped.push(step.row);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let mut failed_items = HashSet::new();
+    let mut touched = Vec::new();
+    for step in user {
+        if failed_items.contains(&step.id) {
+            executed.skipped.push(step.row);
+            continue;
+        }
+        let result = match &step.action {
+            Action::Registry(write) => machine.write(write),
+            Action::Scheme(guid) => machine.set_scheme(guid),
+        };
+        match result {
+            Ok(()) => {
+                executed.done.push(step.row);
+                if !touched.contains(&step.id) {
+                    touched.push(step.id);
+                }
+            }
+            Err(message) => {
+                failed_items.insert(step.id);
+                executed.failed.push((step.id, message));
+                executed.skipped.push(step.row);
+            }
+        }
+    }
+    for id in touched {
+        machine.refresh(id);
+    }
+    Ok(executed)
+}
+
+fn forward(id: TweakId, change: &Change) -> Action {
+    match change {
+        Change::Registry {
+            hive,
+            key,
+            name,
+            new,
+            ..
+        } => Action::Registry(RegWrite {
+            id,
+            hive: *hive,
+            key: key.clone(),
+            name: name.clone(),
+            put: Put::Data { data: new.clone() },
+        }),
+        Change::Scheme { new, .. } => Action::Scheme(new.clone()),
+    }
+}
+
+fn backward(id: TweakId, change: &Change) -> Action {
+    match change {
+        Change::Registry {
+            hive,
+            key,
+            name,
+            old,
+            ..
+        } => Action::Registry(RegWrite {
+            id,
+            hive: *hive,
+            key: key.clone(),
+            name: name.clone(),
+            put: Put::restoring(old),
+        }),
+        Change::Scheme { old, .. } => Action::Scheme(old.clone()),
+    }
+}
+
+fn outcome_of(steps: &[Step], executed: Executed, run: Option<i64>) -> ApplyOutcome {
+    let mut ids: Vec<TweakId> = Vec::new();
+    for step in steps {
+        if !ids.contains(&step.id) {
+            ids.push(step.id);
+        }
+    }
+    let items: Vec<ItemOutcome> = ids
+        .into_iter()
+        .map(|id| {
+            let failure = executed.failed.iter().find(|(failed, _)| *failed == id);
+            ItemOutcome {
+                id,
+                result: failure.map_or(ItemResult::Done, |(_, message)| ItemResult::Failed {
+                    message: message.clone(),
+                }),
+            }
+        })
+        .collect();
+    let mut effects: Vec<Effect> = items
+        .iter()
+        .filter(|item| item.result == ItemResult::Done)
+        .filter_map(|item| tweak(item.id).map(|tweak| tweak.effect))
+        .filter(|effect| *effect != Effect::Now)
+        .collect();
+    effects.sort_unstable();
+    effects.dedup();
+    ApplyOutcome {
+        outcome: ChangeOutcome::Done,
+        run,
+        items,
+        restore_point: executed.restore_point,
+        effects,
+    }
+}
+
+const fn untouched(outcome: ChangeOutcome) -> ApplyOutcome {
+    ApplyOutcome {
+        outcome,
+        run: None,
+        items: Vec::new(),
+        restore_point: None,
+        effects: Vec::new(),
+    }
+}
+
 /// Applies the checked settings: the plan is made again from the machine as it is now.
 pub fn apply(
-    _machine: &mut dyn Machine,
-    _storage: &Storage,
-    _facts: &HardwareFacts,
-    _args: &PreviewArgs,
-    _now: i64,
+    machine: &mut dyn Machine,
+    storage: &Storage,
+    facts: &HardwareFacts,
+    args: &PreviewArgs,
+    now: i64,
 ) -> Result<ApplyOutcome, OptimizeError> {
-    Err(OptimizeError::Refused("not built yet".to_owned()))
+    let plan = plan_of(machine, facts, &args.checked);
+    if plan.is_empty() {
+        return Ok(untouched(ChangeOutcome::Done));
+    }
+    // Every old value is in the journal before anything is written
+    let run = storage.begin_optimize_run(now)?;
+    let mut steps = Vec::new();
+    for item in &plan.items {
+        for change in &item.changes {
+            let row = storage.put_optimize_change(run, item.id, change)?;
+            steps.push(Step {
+                row,
+                id: item.id,
+                action: forward(item.id, change),
+            });
+        }
+    }
+    let Ok(executed) = execute(machine, &steps, true, args.enable_protection) else {
+        let rows: Vec<i64> = steps.iter().map(|step| step.row).collect();
+        storage.drop_optimize_changes(&rows)?;
+        return Ok(untouched(ChangeOutcome::Declined));
+    };
+    storage.drop_optimize_changes(&executed.skipped)?;
+    let run = storage.optimize_run(run)?.map(|stored| stored.run);
+    Ok(outcome_of(&steps, executed, run))
 }
 
 /// Puts back what a run changed and is not reverted yet, the last change first.
 pub fn revert(
-    _machine: &mut dyn Machine,
-    _storage: &Storage,
-    _run: i64,
-    _now: i64,
+    machine: &mut dyn Machine,
+    storage: &Storage,
+    run: i64,
+    now: i64,
 ) -> Result<ApplyOutcome, OptimizeError> {
-    Err(OptimizeError::Refused("not built yet".to_owned()))
+    let stored = storage
+        .optimize_run(run)?
+        .ok_or_else(|| OptimizeError::Refused(format!("the journal has no run {run}")))?;
+    let steps: Vec<Step> = stored
+        .changes
+        .iter()
+        .rev()
+        .filter(|change| change.reverted_at.is_none())
+        .map(|change| Step {
+            row: change.row,
+            id: change.id,
+            action: backward(change.id, &change.change),
+        })
+        .collect();
+    if steps.is_empty() {
+        return Ok(untouched(ChangeOutcome::Done));
+    }
+    let Ok(executed) = execute(machine, &steps, false, false) else {
+        return Ok(untouched(ChangeOutcome::Declined));
+    };
+    storage.mark_reverted(&executed.done, now)?;
+    Ok(outcome_of(&steps, executed, Some(run)))
 }
 
 #[cfg(test)]
