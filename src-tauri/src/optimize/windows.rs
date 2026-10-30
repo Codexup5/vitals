@@ -717,9 +717,7 @@ impl AdminMachine for Admin {
                 RestorePoint::Created { time }
             }
             (_, Some((_, time))) => RestorePoint::Kept { time },
-            (_, None) => RestorePoint::Created {
-                time: chrono::Utc::now().timestamp(),
-            },
+            (_, None) => RestorePoint::Unconfirmed,
         }
     }
 }
