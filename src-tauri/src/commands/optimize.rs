@@ -3,7 +3,8 @@
 
 use tauri::State;
 use vitals_ipc::{
-    ApplyOutcome, JournalChange, JournalRun, OptimizeOverview, OptimizePlan, PreviewArgs, TweakId,
+    ApplyOutcome, ItemResult, JournalChange, JournalRun, OptimizeOverview, OptimizePlan,
+    PreviewArgs, RestorePoint, TweakId,
 };
 
 use super::{AppState, CommandError, open};
@@ -26,6 +27,22 @@ impl From<OptimizeError> for CommandError {
                 Self::Invalid(error.to_string())
             }
         }
+    }
+}
+
+/// The window shows a failure by its kind; what Windows said goes to the log.
+#[cfg_attr(
+    not(windows),
+    allow(dead_code, reason = "the commands that log exist only on Windows")
+)]
+fn log_failures(outcome: &ApplyOutcome) {
+    for item in &outcome.items {
+        if let ItemResult::Failed { message } = &item.result {
+            tracing::warn!("optimize: {:?} failed: {message}", item.id);
+        }
+    }
+    if let Some(RestorePoint::Failed { message }) = &outcome.restore_point {
+        tracing::warn!("optimize: the restore point failed: {message}");
     }
 }
 
@@ -111,6 +128,7 @@ pub fn optimize_apply(
             outcome.items.len(),
             outcome.restore_point
         );
+        log_failures(&outcome);
         Ok(outcome)
     }
     #[cfg(not(windows))]
@@ -165,6 +183,7 @@ pub fn optimize_revert(state: State<'_, AppState>, run: i64) -> Result<ApplyOutc
             outcome.outcome,
             outcome.items.len()
         );
+        log_failures(&outcome);
         Ok(outcome)
     }
     #[cfg(not(windows))]

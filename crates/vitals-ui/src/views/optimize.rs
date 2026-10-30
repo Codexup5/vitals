@@ -324,7 +324,8 @@ pub fn preview_view(plan: &OptimizePlan, locale: Locale) -> PreviewView {
 pub struct OutcomeView {
     pub headline: String,
     pub tone: Tone,
-    pub failures: Vec<(&'static str, String)>,
+    /// The settings that failed; what Windows said is in the log
+    pub failures: Vec<&'static str>,
     pub restore: Option<String>,
     /// What the user does for every change to show
     pub then: Vec<&'static str>,
@@ -349,22 +350,19 @@ pub fn outcome_view(outcome: &ApplyOutcome, is_revert: bool, locale: Locale) -> 
             offers_explorer: false,
         };
     }
-    let failures: Vec<(&'static str, String)> = outcome
+    let failures: Vec<&'static str> = outcome
         .items
         .iter()
-        .filter_map(|item| match &item.result {
-            ItemResult::Done => None,
-            ItemResult::Failed { message } => {
-                Some((texts.tweaks.of(item.id).title, message.clone()))
-            }
-        })
+        .filter(|item| matches!(item.result, ItemResult::Failed { .. }))
+        .map(|item| texts.tweaks.of(item.id).title)
         .collect();
     let done = outcome.items.len() - failures.len();
     let restore = outcome.restore_point.as_ref().map(|point| match point {
         RestorePoint::Created { time } => (texts.restore_created)(&when(*time, locale)),
         RestorePoint::Kept { time } => (texts.restore_kept)(&when(*time, locale)),
         RestorePoint::ProtectionOff => texts.restore_off.to_owned(),
-        RestorePoint::Failed { message } => (texts.restore_failed)(message),
+        RestorePoint::Unconfirmed => texts.restore_unconfirmed.to_owned(),
+        RestorePoint::Failed { .. } => texts.restore_failed.to_owned(),
     });
     let then = outcome
         .effects

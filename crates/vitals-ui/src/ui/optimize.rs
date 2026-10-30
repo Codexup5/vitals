@@ -26,7 +26,8 @@ type Answer<T> = LocalResource<Result<T, IpcError>>;
 enum Step {
     Idle,
     Busy,
-    Failed,
+    /// What to say: the kind of the failure
+    Failed(&'static str),
 }
 
 #[component]
@@ -79,10 +80,9 @@ pub fn OptimizePage() -> impl IntoView {
         spawn_local(async move {
             let answer: Result<OptimizePlan, IpcError> =
                 ipc::call(command::OPTIMIZE_PREVIEW, &args).await;
-            let next = if answer.is_ok() {
-                Step::Idle
-            } else {
-                Step::Failed
+            let next = match &answer {
+                Ok(_) => Step::Idle,
+                Err(error) => Step::Failed(error.text(locale.get_untracked())),
             };
             if step.try_set(next).is_none() {
                 preview.set(answer.ok());
@@ -115,7 +115,10 @@ pub fn OptimizePage() -> impl IntoView {
                         .into_any()
                 }
             }}
-            {move || (step.get() == Step::Failed).then(|| view! { <p role="alert">{locale.get().texts().optimize.failed}</p> })}
+            {move || match step.get() {
+                Step::Failed(text) => Some(view! { <p role="alert">{text}</p> }),
+                Step::Idle | Step::Busy => None,
+            }}
             {move || {
                 preview
                     .get()
@@ -359,10 +362,10 @@ fn Preview(
         spawn_local(async move {
             let answer: Result<ApplyOutcome, IpcError> =
                 ipc::call_within(command::OPTIMIZE_APPLY, &args, ipc::UAC_DEADLINE_MS).await;
-            let next = if answer.is_ok() {
-                Step::Idle
-            } else {
-                Step::Failed
+            // An apply that did not answer may have written some values: the journal shows them
+            let next = match &answer {
+                Ok(_) => Step::Idle,
+                Err(_) => Step::Failed(locale.get_untracked().texts().optimize.apply_failed),
             };
             // The page may be gone by the time the UAC prompt is answered
             if step.try_set(next).is_none() {
@@ -465,12 +468,12 @@ fn Outcome(view: OutcomeView, locale: Signal<Locale>) -> impl IntoView {
                             {view
                                 .failures
                                 .into_iter()
-                                .map(|(title, message)| {
+                                .map(|title| {
                                     view! {
                                         <li>
                                             <span class="row-title">{title}</span>
                                             " · "
-                                            <span class="mono muted">{message}</span>
+                                            <span class="muted">{texts.item_failed}</span>
                                         </li>
                                     }
                                 })

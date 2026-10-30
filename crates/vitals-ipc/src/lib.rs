@@ -1420,6 +1420,8 @@ pub enum RestorePoint {
     },
     /// System Protection is off and the user did not ask to turn it on
     ProtectionOff,
+    /// Windows took the request, but the list of points could not be read to tell created from kept
+    Unconfirmed,
     Failed {
         message: String,
     },
