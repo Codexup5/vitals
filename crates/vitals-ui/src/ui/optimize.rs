@@ -44,6 +44,8 @@ pub fn OptimizePage() -> impl IntoView {
     let preview = RwSignal::new(None::<OptimizePlan>);
     let outcome = RwSignal::new(None::<ApplyOutcome>);
     let step = RwSignal::new(Step::Idle);
+    // The run a revert works on: an apply waits for it, and a revert waits for an apply
+    let reverting = RwSignal::new(None::<i64>);
 
     // The checks follow the defaults whenever the machine is read again or the focuses change
     Effect::new(move |_| {
@@ -118,11 +120,11 @@ pub fn OptimizePage() -> impl IntoView {
                 preview
                     .get()
                     .map(|plan| {
-                        view! { <Preview view=preview_view(&plan, locale.get()) checked preview outcome step overview journal locale /> }
+                        view! { <Preview view=preview_view(&plan, locale.get()) checked preview outcome step reverting overview journal locale /> }
                     })
             }}
             {move || outcome.get().map(|done| view! { <Outcome view=outcome_view(&done, false, locale.get()) locale /> })}
-            <Journal journal overview locale />
+            <Journal journal overview step busy=reverting locale />
         </main>
     }
 }
@@ -341,6 +343,7 @@ fn Preview(
     preview: RwSignal<Option<OptimizePlan>>,
     outcome: RwSignal<Option<ApplyOutcome>>,
     step: RwSignal<Step>,
+    reverting: RwSignal<Option<i64>>,
     overview: Answer<OptimizeOverview>,
     journal: Answer<Vec<JournalRun>>,
     locale: Signal<Locale>,
@@ -355,7 +358,7 @@ fn Preview(
         };
         spawn_local(async move {
             let answer: Result<ApplyOutcome, IpcError> =
-                ipc::call(command::OPTIMIZE_APPLY, &args).await;
+                ipc::call_within(command::OPTIMIZE_APPLY, &args, ipc::UAC_DEADLINE_MS).await;
             let next = if answer.is_ok() {
                 Step::Idle
             } else {
@@ -420,7 +423,7 @@ fn Preview(
             <div class="optimize-actions">
                 <button
                     type="button"
-                    disabled=move || view.is_empty || step.get() == Step::Busy
+                    disabled=move || view.is_empty || step.get() == Step::Busy || reverting.get().is_some()
                     aria-busy=move || (step.get() == Step::Busy).to_string()
                     on:click=move |_| apply()
                 >
@@ -506,16 +509,21 @@ fn Outcome(view: OutcomeView, locale: Signal<Locale>) -> impl IntoView {
 fn Journal(
     journal: Answer<Vec<JournalRun>>,
     overview: Answer<OptimizeOverview>,
+    step: RwSignal<Step>,
+    busy: RwSignal<Option<i64>>,
     locale: Signal<Locale>,
 ) -> impl IntoView {
-    let busy = RwSignal::new(None::<i64>);
     let result = RwSignal::new(None::<OutcomeView>);
     let revert = move |run: i64| {
         busy.set(Some(run));
         result.set(None);
         spawn_local(async move {
-            let answer: Result<ApplyOutcome, IpcError> =
-                ipc::call(command::OPTIMIZE_REVERT, &RevertArgs { run }).await;
+            let answer: Result<ApplyOutcome, IpcError> = ipc::call_within(
+                command::OPTIMIZE_REVERT,
+                &RevertArgs { run },
+                ipc::UAC_DEADLINE_MS,
+            )
+            .await;
             if busy.try_set(None).is_some() {
                 return;
             }
@@ -554,7 +562,7 @@ fn Journal(
                     view! {
                         <div class="card">
                             <ul class="rows">
-                                {lines.into_iter().map(|line| view! { <JournalItem line busy revert locale /> }).collect_view()}
+                                {lines.into_iter().map(|line| view! { <JournalItem line busy step revert locale /> }).collect_view()}
                             </ul>
                         </div>
                     }
@@ -569,6 +577,7 @@ fn Journal(
 fn JournalItem(
     line: JournalLine,
     busy: RwSignal<Option<i64>>,
+    step: RwSignal<Step>,
     revert: impl Fn(i64) + Copy + Send + Sync + 'static,
     locale: Signal<Locale>,
 ) -> impl IntoView {
@@ -604,7 +613,7 @@ fn JournalItem(
                         <button
                             type="button"
                             class="row-action"
-                            disabled=move || busy.get().is_some()
+                            disabled=move || busy.get().is_some() || step.get() == Step::Busy
                             aria-busy=move || is_busy().to_string()
                             on:click=move |_| revert(run)
                         >

@@ -9,6 +9,15 @@ use vitals_ipc::{
 use super::{AppState, CommandError, open};
 use crate::optimize::OptimizeError;
 
+/// One apply or revert at a time: two would share the files of the elevated action and race on the journal.
+static RUNNING: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+fn exclusive() -> Result<std::sync::MutexGuard<'static, ()>, CommandError> {
+    RUNNING
+        .try_lock()
+        .map_err(|_| CommandError::Invalid("another optimization run is in progress".to_owned()))
+}
+
 impl From<OptimizeError> for CommandError {
     fn from(error: OptimizeError) -> Self {
         match error {
@@ -83,6 +92,7 @@ pub fn optimize_apply(
     checked: Vec<TweakId>,
     enable_protection: bool,
 ) -> Result<ApplyOutcome, CommandError> {
+    let _running = exclusive()?;
     let storage = open(&state)?;
     let args = PreviewArgs {
         checked,
@@ -144,6 +154,7 @@ pub fn optimize_journal(state: State<'_, AppState>) -> Result<Vec<JournalRun>, C
 /// Async: a run with an admin change waits for the UAC prompt.
 #[tauri::command(async)]
 pub fn optimize_revert(state: State<'_, AppState>, run: i64) -> Result<ApplyOutcome, CommandError> {
+    let _running = exclusive()?;
     let storage = open(&state)?;
     #[cfg(windows)]
     {
