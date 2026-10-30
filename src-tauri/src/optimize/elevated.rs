@@ -112,10 +112,14 @@ pub fn perform(request: &str) -> Result<String, String> {
     serde_json::to_string(&report).map_err(|error| error.to_string())
 }
 
-fn run(_request: &ElevatedRequest) -> Result<ElevatedReport, OptimizeError> {
-    Err(OptimizeError::Registry(
-        "the Windows side of the optimizer comes with step 10".to_owned(),
-    ))
+#[cfg(windows)]
+fn run(request: &ElevatedRequest) -> Result<ElevatedReport, OptimizeError> {
+    perform_with(&mut super::windows::Admin, request)
+}
+
+#[cfg(not(windows))]
+fn run(_: &ElevatedRequest) -> Result<ElevatedReport, OptimizeError> {
+    Err(OptimizeError::Registry("only on Windows".to_owned()))
 }
 
 #[cfg(test)]
