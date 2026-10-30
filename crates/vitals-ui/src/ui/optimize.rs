@@ -121,7 +121,7 @@ pub fn OptimizePage() -> impl IntoView {
                         view! { <Preview view=preview_view(&plan, locale.get()) checked preview outcome step overview journal locale /> }
                     })
             }}
-            {move || outcome.get().map(|done| view! { <Outcome view=outcome_view(&done, locale.get()) locale /> })}
+            {move || outcome.get().map(|done| view! { <Outcome view=outcome_view(&done, false, locale.get()) locale /> })}
             <Journal journal overview locale />
         </main>
     }
@@ -451,7 +451,7 @@ fn Outcome(view: OutcomeView, locale: Signal<Locale>) -> impl IntoView {
     };
     view! {
         <section class="section" aria-labelledby="outcome-title" role="status">
-            <h2 id="outcome-title" class="visually-hidden">{texts.preview_title}</h2>
+            <h2 id="outcome-title" class="visually-hidden">{texts.outcome_title}</h2>
             <p>
                 <Tag tone=view.tone>{view.headline}</Tag>
             </p>
@@ -522,7 +522,7 @@ fn Journal(
             result.set(
                 answer
                     .ok()
-                    .map(|done| outcome_view(&done, locale.get_untracked())),
+                    .map(|done| outcome_view(&done, true, locale.get_untracked())),
             );
             journal.refetch();
             overview.refetch();

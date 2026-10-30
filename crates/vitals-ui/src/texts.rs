@@ -602,6 +602,8 @@ pub struct OptimizePage {
     pub declined: &'static str,
     pub nothing_changed: &'static str,
     pub applied: fn(usize, usize) -> String,
+    pub reverted_count: fn(usize, usize) -> String,
+    pub outcome_title: &'static str,
     pub restore_created: fn(&str) -> String,
     pub restore_kept: fn(&str) -> String,
     pub restore_off: &'static str,
@@ -1289,6 +1291,14 @@ pub static RU: Texts = Texts {
                 format!("Применено: {done}, не удалось: {failed}.")
             }
         },
+        reverted_count: |done, failed| {
+            if failed == 0 {
+                format!("Возвращено настроек: {done}.")
+            } else {
+                format!("Возвращено: {done}, не удалось: {failed}.")
+            }
+        },
+        outcome_title: "Итог",
         restore_created: |time| format!("Точка восстановления создана: {time}."),
         restore_kept: |time| {
             format!("Новую точку Windows не сделала: за сутки уже есть точка от {time}.")
@@ -2057,6 +2067,14 @@ pub static EN: Texts = Texts {
                 format!("Applied: {done}, failed: {failed}.")
             }
         },
+        reverted_count: |done, failed| {
+            if failed == 0 {
+                format!("Settings reverted: {done}.")
+            } else {
+                format!("Reverted: {done}, failed: {failed}.")
+            }
+        },
+        outcome_title: "Outcome",
         restore_created: |time| format!("Restore point created: {time}."),
         restore_kept: |time| {
             format!("Windows made no new point: one from {time} is less than a day old.")

@@ -333,7 +333,8 @@ fn when(seconds: i64, locale: Locale) -> String {
     format::local_time(seconds).map_or_else(String::new, |time| format::date_time(time, locale))
 }
 
-pub fn outcome_view(outcome: &ApplyOutcome, locale: Locale) -> OutcomeView {
+/// The outcome of an apply, or of a revert when `is_revert`.
+pub fn outcome_view(outcome: &ApplyOutcome, is_revert: bool, locale: Locale) -> OutcomeView {
     let texts = &locale.texts().optimize;
     if outcome.outcome == ChangeOutcome::Declined {
         return OutcomeView {
@@ -378,7 +379,12 @@ pub fn outcome_view(outcome: &ApplyOutcome, locale: Locale) -> OutcomeView {
         headline: if outcome.items.is_empty() {
             texts.nothing_changed.to_owned()
         } else {
-            (texts.applied)(done, failures.len())
+            let count = if is_revert {
+                texts.reverted_count
+            } else {
+                texts.applied
+            };
+            count(done, failures.len())
         },
         tone: if failures.is_empty() {
             Tone::Ok
@@ -570,7 +576,7 @@ mod tests {
             effects: vec![Effect::ExplorerRestart, Effect::Reboot],
         };
         let texts = &Locale::En.texts().optimize;
-        let view = outcome_view(&outcome, Locale::En);
+        let view = outcome_view(&outcome, false, Locale::En);
         assert_eq!(view.tone, Tone::Warn);
         assert_eq!(view.failures.len(), 1);
         assert_eq!(view.restore.as_deref(), Some(texts.restore_off));
@@ -580,7 +586,18 @@ mod tests {
             outcome: ChangeOutcome::Declined,
             ..outcome
         };
-        assert_eq!(outcome_view(&declined, Locale::En).headline, texts.declined);
+        assert_eq!(
+            outcome_view(&declined, false, Locale::En).headline,
+            texts.declined
+        );
+        let back = ApplyOutcome {
+            outcome: ChangeOutcome::Done,
+            ..declined
+        };
+        assert_eq!(
+            outcome_view(&back, true, Locale::En).headline,
+            "Reverted: 1, failed: 1."
+        );
     }
 
     #[test]
