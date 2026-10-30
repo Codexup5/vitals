@@ -1,4 +1,4 @@
-//! The seven modules of the panel, in navigation order.
+//! The eight modules of the panel, in navigation order.
 
 use crate::i18n::Locale;
 
@@ -11,10 +11,11 @@ pub enum Module {
     Startup,
     Updates,
     Network,
+    Optimize,
 }
 
 impl Module {
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 8] = [
         Self::Errors,
         Self::Disks,
         Self::Runners,
@@ -22,6 +23,7 @@ impl Module {
         Self::Startup,
         Self::Updates,
         Self::Network,
+        Self::Optimize,
     ];
 
     pub const fn id(self) -> &'static str {
@@ -33,6 +35,7 @@ impl Module {
             Self::Startup => "startup",
             Self::Updates => "updates",
             Self::Network => "network",
+            Self::Optimize => "optimize",
         }
     }
 
@@ -50,6 +53,7 @@ impl Module {
             Self::Startup => texts.startup,
             Self::Updates => texts.updates,
             Self::Network => texts.network,
+            Self::Optimize => texts.optimize,
         }
     }
 
@@ -63,6 +67,7 @@ impl Module {
             Self::Network => 6,
             Self::Startup => 7,
             Self::Sensors => 9,
+            Self::Optimize => 11,
         }
     }
 }
