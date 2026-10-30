@@ -222,15 +222,19 @@ pub enum Change {
 /// What the optimizer reads of the machine: values and the power scheme.
 pub trait Reader {
     /// `Err` when the key is absent; `Ok(None)` when the key is there and the value is not
-    fn value(&self, at: &Location) -> Result<Option<Data>, KeyAbsent>;
+    fn value(&self, at: &Location) -> Result<Option<Data>, Unread>;
     /// The GUID of the active scheme, lower case
     fn scheme(&self) -> Option<String>;
     /// The scheme's name as Windows shows it
     fn scheme_name(&self, guid: &str) -> Option<String>;
 }
 
-/// The key of a value does not exist; `created` is the first key of the path a write would create.
+/// Why a value has no data to read.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct KeyAbsent {
-    pub created: String,
+pub enum Unread {
+    /// The key of the value does not exist; `created` is the first key of the path a write would create
+    KeyAbsent { created: String },
+    /// The value could not be read faithfully (access denied, another type): its setting is not planned, so nothing
+    /// is journaled as absent that was there
+    Failed(String),
 }

@@ -7,7 +7,7 @@ use vitals_ipc::{
 };
 
 use super::catalog::catalog;
-use super::{Change, Data, KeyAbsent, Location, Old, Reader, Tweak, Write};
+use super::{Change, Data, Location, Old, Reader, Tweak, Unread, Write};
 
 /// `powercfg /list`: the schemes every Windows has, by GUID.
 pub const BALANCED: &str = "381b4222-f694-41f0-9685-ff5bb260df2e";
@@ -78,15 +78,19 @@ pub fn offered(facts: &HardwareFacts, focuses: &[vitals_ipc::Focus]) -> Offered 
 }
 
 /// What each write of a setting would do on this machine, holding or not. An unknown active scheme is an empty
-/// `old`: such a change cannot be reverted, so it is never planned.
-fn changes_of(tweak: &Tweak, reader: &dyn Reader, facts: &HardwareFacts) -> Vec<Change> {
+/// `old`: such a change cannot be reverted, so it is never planned. `Err` when a value cannot be read faithfully.
+fn changes_of(
+    tweak: &Tweak,
+    reader: &dyn Reader,
+    facts: &HardwareFacts,
+) -> Result<Vec<Change>, String> {
     tweak
         .writes
         .iter()
         .map(|write| match *write {
-            Write::Value(at, data) => registry(&at, old_of(reader.value(&at)), data.data()),
+            Write::Value(at, data) => Ok(registry(&at, old_of(reader.value(&at))?, data.data())),
             Write::Pair { at, pair, value } => {
-                let old = old_of(reader.value(&at));
+                let old = old_of(reader.value(&at))?;
                 let current = match &old {
                     Old::Value {
                         data: Data::Text(text),
@@ -94,21 +98,22 @@ fn changes_of(tweak: &Tweak, reader: &dyn Reader, facts: &HardwareFacts) -> Vec<
                     _ => "",
                 };
                 let new = Data::Text(merge_pair(current, pair, value));
-                registry(&at, old, new)
+                Ok(registry(&at, old, new))
             }
-            Write::PowerScheme => Change::Scheme {
+            Write::PowerScheme => Ok(Change::Scheme {
                 old: reader.scheme().unwrap_or_default(),
                 new: power_target(facts).to_owned(),
-            },
+            }),
         })
         .collect()
 }
 
-fn old_of(read: Result<Option<Data>, KeyAbsent>) -> Old {
+fn old_of(read: Result<Option<Data>, Unread>) -> Result<Old, String> {
     match read {
-        Err(KeyAbsent { created }) => Old::KeyAbsent { created },
-        Ok(None) => Old::Absent,
-        Ok(Some(data)) => Old::Value { data },
+        Err(Unread::KeyAbsent { created }) => Ok(Old::KeyAbsent { created }),
+        Err(Unread::Failed(reason)) => Err(reason),
+        Ok(None) => Ok(Old::Absent),
+        Ok(Some(data)) => Ok(Old::Value { data }),
     }
 }
 
@@ -135,11 +140,13 @@ pub fn rows_of(reader: &dyn Reader, facts: &HardwareFacts) -> Vec<TweakRow> {
     catalog()
         .iter()
         .map(|tweak| {
-            let changes = changes_of(tweak, reader, facts);
-            let state = if changes.iter().all(holds) {
-                TweakState::Done
-            } else {
-                TweakState::Todo
+            let (changes, state) = match changes_of(tweak, reader, facts) {
+                Ok(changes) if changes.iter().all(holds) => (changes, TweakState::Done),
+                Ok(changes) => (changes, TweakState::Todo),
+                Err(reason) => {
+                    tracing::warn!("optimize: {:?} cannot be read: {reason}", tweak.id);
+                    (Vec::new(), TweakState::Unreadable)
+                }
             };
             TweakRow {
                 id: tweak.id,
@@ -208,7 +215,10 @@ pub fn plan_of(reader: &dyn Reader, facts: &HardwareFacts, checked: &[TweakId]) 
         .iter()
         .filter(|tweak| checked.contains(&tweak.id) && unmet(tweak, facts).is_none());
     for tweak in offered {
-        let changes: Vec<_> = changes_of(tweak, reader, facts)
+        let Ok(changes) = changes_of(tweak, reader, facts) else {
+            continue;
+        };
+        let changes: Vec<_> = changes
             .into_iter()
             .filter(|change| !holds(change))
             .collect();
@@ -272,7 +282,7 @@ pub mod tests {
     use vitals_ipc::{CpuVendor, Focus, TweakState};
 
     use super::super::catalog::catalog;
-    use super::super::{Data, Hive, KeyAbsent, Location, Old};
+    use super::super::{Data, Hive, Location, Old, Unread};
     use super::*;
 
     /// A machine in memory: values by hive, key and name; a key not listed is absent.
@@ -280,6 +290,8 @@ pub mod tests {
     pub struct FakeReader {
         pub keys: HashMap<(Hive, String), HashMap<String, Data>>,
         pub scheme: Option<String>,
+        /// Value names that read as `Unread::Failed`
+        pub unreadable: Vec<String>,
     }
 
     impl FakeReader {
@@ -313,10 +325,17 @@ pub mod tests {
     }
 
     impl Reader for FakeReader {
-        fn value(&self, at: &Location) -> Result<Option<Data>, KeyAbsent> {
+        fn value(&self, at: &Location) -> Result<Option<Data>, Unread> {
+            if self
+                .unreadable
+                .iter()
+                .any(|name| name.eq_ignore_ascii_case(at.name))
+            {
+                return Err(Unread::Failed("access denied".to_owned()));
+            }
             let Some(values) = self.keys.get(&(at.hive, at.key.to_ascii_lowercase())) else {
                 // The fake creates the whole path: the first missing part is the key itself
-                return Err(KeyAbsent {
+                return Err(Unread::KeyAbsent {
                     created: at.key.to_owned(),
                 });
             };
@@ -534,6 +553,23 @@ pub mod tests {
         assert_eq!(shown.user[0].changes[0].was.as_deref(), Some("1"));
         assert_eq!(shown.user[0].changes[0].becomes.as_deref(), Some("0"));
         assert!(shown.needs_uac());
+    }
+
+    #[test]
+    fn an_unreadable_value_is_never_planned_as_absent() {
+        let mut reader = FakeReader::with_catalog_keys();
+        reader.unreadable.push("AutoGameModeEnabled".to_owned());
+        let rows = rows_of(&reader, &olegpc());
+        let game_mode = rows.iter().find(|row| row.id == TweakId::GameMode).unwrap();
+        assert_eq!(game_mode.state, TweakState::Unreadable);
+        let plan = plan_of(
+            &reader,
+            &olegpc(),
+            &[TweakId::GameMode, TweakId::FileExtensions],
+        );
+        let ids: Vec<_> = plan.items.iter().map(|item| item.id).collect();
+        assert_eq!(ids, [TweakId::FileExtensions]);
+        assert_eq!(plan.already_done, []);
     }
 
     #[test]

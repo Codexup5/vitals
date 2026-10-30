@@ -25,9 +25,9 @@ use windows::Win32::System::Power::{
 };
 use windows::Win32::System::Registry::{
     HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_QUERY_VALUE, KEY_READ, KEY_SET_VALUE,
-    REG_DWORD, REG_EXPAND_SZ, REG_OPTION_NON_VOLATILE, REG_SAM_FLAGS, REG_SZ, REG_VALUE_TYPE,
-    RegCloseKey, RegCreateKeyExW, RegDeleteTreeW, RegDeleteValueW, RegEnumKeyExW, RegEnumValueW,
-    RegOpenKeyExW, RegQueryValueExW, RegSetValueExW,
+    REG_DWORD, REG_OPTION_NON_VOLATILE, REG_SAM_FLAGS, REG_SZ, REG_VALUE_TYPE, RegCloseKey,
+    RegCreateKeyExW, RegDeleteTreeW, RegDeleteValueW, RegEnumKeyExW, RegEnumValueW, RegOpenKeyExW,
+    RegQueryValueExW, RegSetValueExW,
 };
 use windows::Win32::System::Restore::{
     BEGIN_SYSTEM_CHANGE, END_SYSTEM_CHANGE, MODIFY_SETTINGS, RESTOREPOINTINFO_EVENT_TYPE,
@@ -42,7 +42,7 @@ use wmi::{COMLibrary, WMIConnection, WMIDateTime};
 use super::apply::{Elevation, Machine};
 use super::elevated::{AdminMachine, ElevatedReport, ElevatedRequest};
 use super::plan::HIGH_PERFORMANCE;
-use super::{Data, Hive, KeyAbsent, Location, Put, Reader, RegWrite};
+use super::{Data, Hive, Location, Put, Reader, RegWrite, Unread};
 
 const PROCESSOR: &str = r"HARDWARE\DESCRIPTION\System\CentralProcessor\0";
 const CURRENT_VERSION: &str = r"SOFTWARE\Microsoft\Windows NT\CurrentVersion";
@@ -239,13 +239,14 @@ const fn root_of(hive: Hive) -> HKEY {
     }
 }
 
-/// The catalog writes `REG_DWORD` and `REG_SZ`; `REG_EXPAND_SZ` reads as text.
+/// The two types the catalog writes. Any other, `REG_EXPAND_SZ` included, has no `Data`: written back it would change
+/// type, so its setting is not planned and a write over it is refused.
 fn data_of(kind: REG_VALUE_TYPE, bytes: &[u8]) -> Option<Data> {
     if kind == REG_DWORD {
         let bytes: [u8; 4] = bytes.get(..4)?.try_into().ok()?;
         return Some(Data::Dword(u32::from_le_bytes(bytes)));
     }
-    if kind == REG_SZ || kind == REG_EXPAND_SZ {
+    if kind == REG_SZ {
         let units: Vec<u16> = bytes
             .as_chunks::<2>()
             .0
@@ -272,20 +273,25 @@ fn first_missing(root: HKEY, path: &str) -> String {
         .unwrap_or_else(|| path.to_owned())
 }
 
-/// A value of a key from the root of a hive. A value of a type the catalog does not write reads as absent; a write
-/// over it is refused, so it is never lost.
-pub fn read(hive: Hive, key: &str, name: &str) -> Result<Option<Data>, KeyAbsent> {
+/// A value of a key from the root of a hive. Only a value that is not there reads as absent: a key that cannot be
+/// opened, a value that cannot be queried or one of another type is `Unread::Failed`, never journaled as absent.
+pub fn read(hive: Hive, key: &str, name: &str) -> Result<Option<Data>, Unread> {
     let root = root_of(hive);
-    match Key::open(root, key, KEY_QUERY_VALUE) {
-        Ok(open) => Ok(open
-            .query(name)
-            .ok()
-            .flatten()
-            .and_then(|(kind, bytes)| data_of(kind, &bytes))),
-        Err(error) if error == ERROR_FILE_NOT_FOUND => Err(KeyAbsent {
-            created: first_missing(root, key),
-        }),
-        Err(_) => Ok(None),
+    let open = match Key::open(root, key, KEY_QUERY_VALUE) {
+        Ok(open) => open,
+        Err(error) if error == ERROR_FILE_NOT_FOUND => {
+            return Err(Unread::KeyAbsent {
+                created: first_missing(root, key),
+            });
+        }
+        Err(error) => return Err(Unread::Failed(format!("{key}: error {}", error.0))),
+    };
+    match open.query(name) {
+        Ok(None) => Ok(None),
+        Ok(Some((kind, bytes))) => data_of(kind, &bytes)
+            .map(Some)
+            .ok_or_else(|| Unread::Failed(format!("{name}: a value of type {} is there", kind.0))),
+        Err(message) => Err(Unread::Failed(format!("{name}: {message}"))),
     }
 }
 
@@ -547,7 +553,7 @@ pub struct Windows {
 }
 
 impl Reader for Windows {
-    fn value(&self, at: &Location) -> Result<Option<Data>, KeyAbsent> {
+    fn value(&self, at: &Location) -> Result<Option<Data>, Unread> {
         read(at.hive, at.key, at.name)
     }
 
@@ -790,7 +796,7 @@ mod tests {
         let key = format!(r"{root}\inner");
         // Software\Vitals may not exist yet: the first missing key is the one a write creates and a revert deletes
         let absent = read(Hive::User, &key, "Mode");
-        let Err(KeyAbsent { created }) = absent else {
+        let Err(Unread::KeyAbsent { created }) = absent else {
             panic!("{absent:?}: the scratch key exists");
         };
         assert!(
@@ -862,10 +868,13 @@ mod tests {
             },
         ))
         .unwrap();
-        assert!(matches!(read(Hive::User, &key, ""), Err(KeyAbsent { .. })));
+        assert!(matches!(
+            read(Hive::User, &key, ""),
+            Err(Unread::KeyAbsent { .. })
+        ));
         assert!(matches!(
             read(Hive::User, &created, ""),
-            Err(KeyAbsent { .. })
+            Err(Unread::KeyAbsent { .. })
         ));
         drop(scratch);
     }

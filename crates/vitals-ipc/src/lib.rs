@@ -1332,6 +1332,8 @@ pub enum TweakState {
     Done,
     /// At least one of its values is not the target yet
     Todo,
+    /// A value cannot be read faithfully (access denied, another type): the setting is not offered
+    Unreadable,
 }
 
 /// One value a setting writes: its name, what it is now, what it becomes. `None` is "absent".
