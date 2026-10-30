@@ -1,9 +1,6 @@
 //! The journal of the optimizer: one row per value a run changed, with what it replaced, written before the change.
 //! A revert puts back the old value of each row of a run and marks the row; a marked row is never reverted again.
 
-// Until the commands of step 11 call it, the journal is reached only from its tests
-#![allow(dead_code, reason = "wired to the commands in step 11 of the 11a plan")]
-
 use rusqlite::{OptionalExtension, params};
 use vitals_ipc::TweakId;
 

@@ -119,7 +119,7 @@ fn run(request: &ElevatedRequest) -> Result<ElevatedReport, OptimizeError> {
 
 #[cfg(not(windows))]
 fn run(_: &ElevatedRequest) -> Result<ElevatedReport, OptimizeError> {
-    Err(OptimizeError::Registry("only on Windows".to_owned()))
+    Err(OptimizeError::Refused("only on Windows".to_owned()))
 }
 
 #[cfg(test)]

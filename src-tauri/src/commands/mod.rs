@@ -9,6 +9,7 @@ pub mod alerts;
 pub mod claude;
 pub mod disks;
 pub mod network;
+pub mod optimize;
 pub mod runners;
 pub mod sensors;
 pub mod startup;

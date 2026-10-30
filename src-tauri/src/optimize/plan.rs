@@ -2,8 +2,8 @@
 //! would change with what it replaces, admin items apart from user items, settings that already hold apart.
 
 use vitals_ipc::{
-    Condition, CpuVendor, Effect, Focus, HardwareFacts, OptimizePlan, PlanItem, Rights, TweakId,
-    TweakRow, TweakState, ValueChange,
+    Condition, CpuVendor, Effect, HardwareFacts, OptimizePlan, PlanItem, Rights, TweakId, TweakRow,
+    TweakState, ValueChange,
 };
 
 use super::catalog::catalog;
@@ -55,17 +55,19 @@ pub fn merge_pair(current: &str, name: &str, value: &str) -> String {
 }
 
 /// The settings a machine is offered for the chosen focuses (the base always), and the ones hidden with the reason.
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Offered {
     pub shown: Vec<TweakId>,
     pub hidden: Vec<(TweakId, Condition)>,
 }
 
-pub fn offered(facts: &HardwareFacts, focuses: &[Focus]) -> Offered {
+#[cfg(test)]
+pub fn offered(facts: &HardwareFacts, focuses: &[vitals_ipc::Focus]) -> Offered {
     let mut offered = Offered::default();
     let chosen = catalog()
         .iter()
-        .filter(|tweak| tweak.focus == Focus::Base || focuses.contains(&tweak.focus));
+        .filter(|tweak| tweak.focus == vitals_ipc::Focus::Base || focuses.contains(&tweak.focus));
     for tweak in chosen {
         match unmet(tweak, facts) {
             Some(condition) => offered.hidden.push((tweak.id, condition)),
@@ -267,7 +269,7 @@ pub fn shown(change: &Change, reader: &dyn Reader) -> ValueChange {
 pub mod tests {
     use std::collections::HashMap;
 
-    use vitals_ipc::{CpuVendor, TweakState};
+    use vitals_ipc::{CpuVendor, Focus, TweakState};
 
     use super::super::catalog::catalog;
     use super::super::{Data, Hive, KeyAbsent, Location, Old};

@@ -3,15 +3,12 @@
 //! exactly; the admin items of a run go through one UAC, which also makes a restore point first. The rules are in
 //! `.claude/rules/rust.md` §3: nothing outside the catalog, HKCU never from `--elevated`.
 
-// Until the commands of step 11 call it, the domain is reached only from its tests
-#![allow(dead_code, reason = "wired to the commands in step 11 of the 11a plan")]
-
 pub mod apply;
 pub mod catalog;
 pub mod elevated;
 pub mod plan;
 #[cfg(windows)]
-mod windows;
+pub mod windows;
 
 use serde::{Deserialize, Serialize};
 use vitals_ipc::{Condition, Effect, Focus, Rights, TweakId};
@@ -24,10 +21,6 @@ pub enum OptimizeError {
     Unknown(String),
     #[error("{0}")]
     Refused(String),
-    #[error("the registry refused: {0}")]
-    Registry(String),
-    #[error("{0}")]
-    Elevated(String),
     #[error(transparent)]
     Storage(#[from] StorageError),
 }
@@ -47,13 +40,6 @@ impl Hive {
         match self {
             Self::User => "HKCU",
             Self::Machine => "HKLM",
-        }
-    }
-
-    pub const fn rights(self) -> Rights {
-        match self {
-            Self::User => Rights::User,
-            Self::Machine => Rights::Admin,
         }
     }
 }
@@ -92,13 +78,6 @@ pub struct Location {
     /// From the root of the hive: `Software\…` or `SYSTEM\…`
     pub key: &'static str,
     pub name: &'static str,
-}
-
-impl Location {
-    pub fn display(&self) -> String {
-        let name = if self.name.is_empty() { "@" } else { self.name };
-        format!("{}\\{}\\{name}", self.hive.prefix(), self.key)
-    }
 }
 
 /// What a catalog item writes.
