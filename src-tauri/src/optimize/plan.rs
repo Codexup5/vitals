@@ -2,28 +2,56 @@
 //! would change with what it replaces, admin items apart from user items, settings that already hold apart.
 
 use vitals_ipc::{
-    Condition, Effect, Focus, HardwareFacts, OptimizePlan, Rights, TweakId, TweakRow, ValueChange,
+    Condition, CpuVendor, Effect, Focus, HardwareFacts, OptimizePlan, PlanItem, Rights, TweakId,
+    TweakRow, TweakState, ValueChange,
 };
 
-use super::{Change, Reader, Tweak};
+use super::catalog::catalog;
+use super::{Change, Data, KeyAbsent, Location, Old, Reader, Tweak, Write};
 
 /// `powercfg /list`: the schemes every Windows has, by GUID.
 pub const BALANCED: &str = "381b4222-f694-41f0-9685-ff5bb260df2e";
 pub const HIGH_PERFORMANCE: &str = "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c";
 
+/// The name a power scheme change shows under
+const SCHEME_NAME: &str = "powercfg";
+
 /// The scheme for this hardware: Balanced on AMD and on a laptop, High performance on an Intel desktop.
-pub fn power_target(_facts: &HardwareFacts) -> &'static str {
-    BALANCED
+pub fn power_target(facts: &HardwareFacts) -> &'static str {
+    if facts.cpu_vendor == CpuVendor::Intel && !facts.is_laptop {
+        HIGH_PERFORMANCE
+    } else {
+        BALANCED
+    }
 }
 
 /// The condition this machine does not meet for a setting.
-pub fn unmet(_tweak: &Tweak, _facts: &HardwareFacts) -> Option<Condition> {
-    None
+pub fn unmet(tweak: &Tweak, facts: &HardwareFacts) -> Option<Condition> {
+    let needs_high_performance =
+        tweak.writes.contains(&Write::PowerScheme) && power_target(facts) == HIGH_PERFORMANCE;
+    tweak
+        .condition
+        .or_else(|| needs_high_performance.then_some(Condition::HighPerformanceScheme))
+        .filter(|condition| !facts.met.contains(condition))
 }
 
 /// Merges `name=value;` into a string of such pairs, keeping the other pairs and their order.
-pub fn merge_pair(_current: &str, _name: &str, _value: &str) -> String {
-    String::new()
+pub fn merge_pair(current: &str, name: &str, value: &str) -> String {
+    let mut pairs: Vec<String> = current
+        .split(';')
+        .map(str::trim)
+        .filter(|pair| !pair.is_empty())
+        .map(str::to_owned)
+        .collect();
+    let entry = format!("{name}={value}");
+    match pairs
+        .iter_mut()
+        .find(|pair| pair.split('=').next() == Some(name))
+    {
+        Some(pair) => *pair = entry,
+        None => pairs.push(entry),
+    }
+    pairs.iter().flat_map(|pair| [pair.as_str(), ";"]).collect()
 }
 
 /// The settings a machine is offered for the chosen focuses (the base always), and the ones hidden with the reason.
@@ -33,13 +61,96 @@ pub struct Offered {
     pub hidden: Vec<(TweakId, Condition)>,
 }
 
-pub fn offered(_facts: &HardwareFacts, _focuses: &[Focus]) -> Offered {
-    Offered::default()
+pub fn offered(facts: &HardwareFacts, focuses: &[Focus]) -> Offered {
+    let mut offered = Offered::default();
+    let chosen = catalog()
+        .iter()
+        .filter(|tweak| tweak.focus == Focus::Base || focuses.contains(&tweak.focus));
+    for tweak in chosen {
+        match unmet(tweak, facts) {
+            Some(condition) => offered.hidden.push((tweak.id, condition)),
+            None => offered.shown.push(tweak.id),
+        }
+    }
+    offered
+}
+
+/// What each write of a setting would do on this machine, holding or not. An unknown active scheme is an empty
+/// `old`: such a change cannot be reverted, so it is never planned.
+fn changes_of(tweak: &Tweak, reader: &dyn Reader, facts: &HardwareFacts) -> Vec<Change> {
+    tweak
+        .writes
+        .iter()
+        .map(|write| match *write {
+            Write::Value(at, data) => registry(&at, old_of(reader.value(&at)), data.data()),
+            Write::Pair { at, pair, value } => {
+                let old = old_of(reader.value(&at));
+                let current = match &old {
+                    Old::Value {
+                        data: Data::Text(text),
+                    } => text.as_str(),
+                    _ => "",
+                };
+                let new = Data::Text(merge_pair(current, pair, value));
+                registry(&at, old, new)
+            }
+            Write::PowerScheme => Change::Scheme {
+                old: reader.scheme().unwrap_or_default(),
+                new: power_target(facts).to_owned(),
+            },
+        })
+        .collect()
+}
+
+fn old_of(read: Result<Option<Data>, KeyAbsent>) -> Old {
+    match read {
+        Err(KeyAbsent { created }) => Old::KeyAbsent { created },
+        Ok(None) => Old::Absent,
+        Ok(Some(data)) => Old::Value { data },
+    }
+}
+
+fn registry(at: &Location, old: Old, new: Data) -> Change {
+    Change::Registry {
+        hive: at.hive,
+        key: at.key.to_owned(),
+        name: at.name.to_owned(),
+        old,
+        new,
+    }
+}
+
+/// The machine already has what the change would write
+fn holds(change: &Change) -> bool {
+    match change {
+        Change::Registry { old, new, .. } => matches!(old, Old::Value { data } if data == new),
+        Change::Scheme { old, new } => old == new,
+    }
 }
 
 /// Every setting of the catalog as it stands on this machine.
-pub fn rows_of(_reader: &dyn Reader, _facts: &HardwareFacts) -> Vec<TweakRow> {
-    Vec::new()
+pub fn rows_of(reader: &dyn Reader, facts: &HardwareFacts) -> Vec<TweakRow> {
+    catalog()
+        .iter()
+        .map(|tweak| {
+            let changes = changes_of(tweak, reader, facts);
+            let state = if changes.iter().all(holds) {
+                TweakState::Done
+            } else {
+                TweakState::Todo
+            };
+            TweakRow {
+                id: tweak.id,
+                focus: tweak.focus,
+                rights: tweak.rights(),
+                effect: tweak.effect,
+                state,
+                is_default: tweak.is_default,
+                unmet: unmet(tweak, facts),
+                values: changes.iter().map(|change| shown(change, reader)).collect(),
+            }
+        })
+        .collect()
 }
 
 /// A setting a run changes and the changes it makes.
@@ -64,26 +175,91 @@ impl Plan {
     }
 
     /// What the window shows: "was → becomes" for every value, admin and user apart
-    pub fn to_ipc(&self, _reader: &dyn Reader) -> OptimizePlan {
+    pub fn to_ipc(&self, reader: &dyn Reader) -> OptimizePlan {
+        let of = |rights| {
+            self.items
+                .iter()
+                .filter(|item| item.rights == rights)
+                .map(|item| PlanItem {
+                    id: item.id,
+                    effect: item.effect,
+                    changes: item
+                        .changes
+                        .iter()
+                        .map(|change| shown(change, reader))
+                        .collect(),
+                })
+                .collect()
+        };
         OptimizePlan {
-            admin: Vec::with_capacity(self.items.len()),
-            user: Vec::new(),
-            already_done: Vec::new(),
+            admin: of(Rights::Admin),
+            user: of(Rights::User),
+            already_done: self.already_done.clone(),
         }
     }
 }
 
 /// The plan of the checked settings; an unknown, hidden or unchecked setting is not in it.
-pub fn plan_of(_reader: &dyn Reader, _facts: &HardwareFacts, _checked: &[TweakId]) -> Plan {
-    Plan::default()
+pub fn plan_of(reader: &dyn Reader, facts: &HardwareFacts, checked: &[TweakId]) -> Plan {
+    let mut plan = Plan::default();
+    let offered = catalog()
+        .iter()
+        .filter(|tweak| checked.contains(&tweak.id) && unmet(tweak, facts).is_none());
+    for tweak in offered {
+        let changes: Vec<_> = changes_of(tweak, reader, facts)
+            .into_iter()
+            .filter(|change| !holds(change))
+            .collect();
+        let is_revertible = changes
+            .iter()
+            .all(|change| !matches!(change, Change::Scheme { old, .. } if old.is_empty()));
+        if changes.is_empty() {
+            plan.already_done.push(tweak.id);
+        } else if is_revertible {
+            plan.items.push(Planned {
+                id: tweak.id,
+                rights: tweak.rights(),
+                effect: tweak.effect,
+                changes,
+            });
+        }
+    }
+    plan.items.sort_by_key(|item| item.rights != Rights::Admin);
+    plan
 }
 
 /// A change as the window shows it.
-pub fn shown(_change: &Change, _reader: &dyn Reader) -> ValueChange {
-    ValueChange {
-        name: String::new(),
-        was: None,
-        becomes: None,
+pub fn shown(change: &Change, reader: &dyn Reader) -> ValueChange {
+    match change {
+        Change::Registry {
+            hive,
+            key,
+            name,
+            old,
+            new,
+        } => ValueChange {
+            name: format!(
+                "{}\\{key}\\{}",
+                hive.prefix(),
+                if name.is_empty() { "@" } else { name }
+            ),
+            was: match old {
+                Old::Value { data } => Some(data.display()),
+                Old::Absent | Old::KeyAbsent { .. } => None,
+            },
+            becomes: Some(new.display()),
+        },
+        Change::Scheme { old, new } => {
+            let name_of = |guid: &str| {
+                (!guid.is_empty())
+                    .then(|| reader.scheme_name(guid).unwrap_or_else(|| guid.to_owned()))
+            };
+            ValueChange {
+                name: SCHEME_NAME.to_owned(),
+                was: name_of(old),
+                becomes: name_of(new),
+            }
+        }
     }
 }
 

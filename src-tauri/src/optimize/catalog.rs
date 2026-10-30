@@ -1,13 +1,261 @@
 //! The catalog of 11a: every setting the optimizer may change, with the values it writes. Nothing outside it is ever
 //! written, and the elevated side checks each write against it again.
 
-use vitals_ipc::TweakId;
+use vitals_ipc::{Condition, Effect, Focus, TweakId};
 
-use super::Tweak;
+use super::{DataOf, Hive, Location, Tweak, Write};
+
+const ADVANCED: &str = r"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced";
+const CONTENT_DELIVERY: &str = r"Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager";
+
+const fn user(key: &'static str, name: &'static str, data: DataOf) -> Write {
+    Write::Value(
+        Location {
+            hive: Hive::User,
+            key,
+            name,
+        },
+        data,
+    )
+}
+
+const fn machine(key: &'static str, name: &'static str, data: DataOf) -> Write {
+    Write::Value(
+        Location {
+            hive: Hive::Machine,
+            key,
+            name,
+        },
+        data,
+    )
+}
+
+const fn off(key: &'static str, name: &'static str) -> Write {
+    user(key, name, DataOf::Dword(0))
+}
+
+const fn item(id: TweakId, focus: Focus, effect: Effect, writes: &'static [Write]) -> Tweak {
+    Tweak {
+        id,
+        focus,
+        effect,
+        is_default: true,
+        condition: None,
+        writes,
+    }
+}
+
+const fn unchecked(tweak: Tweak) -> Tweak {
+    Tweak {
+        is_default: false,
+        ..tweak
+    }
+}
+
+const fn only_if(condition: Condition, tweak: Tweak) -> Tweak {
+    Tweak {
+        condition: Some(condition),
+        ..tweak
+    }
+}
+
+const CATALOG: [Tweak; 19] = [
+    item(
+        TweakId::AdvertisingId,
+        Focus::Base,
+        Effect::Now,
+        &[off(
+            r"Software\Microsoft\Windows\CurrentVersion\AdvertisingInfo",
+            "Enabled",
+        )],
+    ),
+    item(
+        TweakId::Tips,
+        Focus::Base,
+        Effect::Now,
+        &[
+            off(CONTENT_DELIVERY, "SubscribedContent-338389Enabled"),
+            off(CONTENT_DELIVERY, "SubscribedContent-310093Enabled"),
+            off(CONTENT_DELIVERY, "SubscribedContent-338393Enabled"),
+            off(CONTENT_DELIVERY, "SubscribedContent-353694Enabled"),
+            off(CONTENT_DELIVERY, "SubscribedContent-353696Enabled"),
+            off(CONTENT_DELIVERY, "SystemPaneSuggestionsEnabled"),
+            off(CONTENT_DELIVERY, "SoftLandingEnabled"),
+        ],
+    ),
+    item(
+        TweakId::StartRecommendations,
+        Focus::Base,
+        Effect::ExplorerRestart,
+        &[
+            off(ADVANCED, "Start_IrisRecommendations"),
+            off(ADVANCED, "Start_TrackDocs"),
+        ],
+    ),
+    item(
+        TweakId::FileExtensions,
+        Focus::Base,
+        Effect::ExplorerRestart,
+        &[off(ADVANCED, "HideFileExt")],
+    ),
+    item(
+        TweakId::ExplorerThisPc,
+        Focus::Base,
+        Effect::Now,
+        &[user(ADVANCED, "LaunchTo", DataOf::Dword(1))],
+    ),
+    item(
+        TweakId::StartWebSearch,
+        Focus::Base,
+        Effect::ExplorerRestart,
+        &[machine(
+            r"SOFTWARE\Policies\Microsoft\Windows\Explorer",
+            "DisableSearchBoxSuggestions",
+            DataOf::Dword(1),
+        )],
+    ),
+    item(
+        TweakId::TailoredExperiences,
+        Focus::Base,
+        Effect::Now,
+        &[off(
+            r"Software\Microsoft\Windows\CurrentVersion\Privacy",
+            "TailoredExperiencesWithDiagnosticDataEnabled",
+        )],
+    ),
+    item(
+        TweakId::DiagnosticData,
+        Focus::Base,
+        Effect::Now,
+        &[machine(
+            r"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\DataCollection",
+            "AllowTelemetry",
+            DataOf::Dword(1),
+        )],
+    ),
+    item(
+        TweakId::ActivityHistory,
+        Focus::Base,
+        Effect::Now,
+        &[machine(
+            r"SOFTWARE\Policies\Microsoft\Windows\System",
+            "PublishUserActivities",
+            DataOf::Dword(0),
+        )],
+    ),
+    // The key is created; a revert deletes what the write created
+    unchecked(item(
+        TweakId::ClassicContextMenu,
+        Focus::Base,
+        Effect::ExplorerRestart,
+        &[user(
+            r"Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32",
+            "",
+            DataOf::Text(""),
+        )],
+    )),
+    only_if(
+        Condition::Hibernation,
+        unchecked(item(
+            TweakId::FastStartupOff,
+            Focus::Base,
+            Effect::NextShutdown,
+            &[machine(
+                r"SYSTEM\CurrentControlSet\Control\Session Manager\Power",
+                "HiberbootEnabled",
+                DataOf::Dword(0),
+            )],
+        )),
+    ),
+    item(
+        TweakId::GameMode,
+        Focus::Games,
+        Effect::Now,
+        &[user(
+            r"Software\Microsoft\GameBar",
+            "AutoGameModeEnabled",
+            DataOf::Dword(1),
+        )],
+    ),
+    only_if(
+        Condition::HagsSupported,
+        item(
+            TweakId::Hags,
+            Focus::Games,
+            Effect::Reboot,
+            &[machine(
+                r"SYSTEM\CurrentControlSet\Control\GraphicsDrivers",
+                "HwSchMode",
+                DataOf::Dword(2),
+            )],
+        ),
+    ),
+    item(
+        TweakId::WindowedOptimizations,
+        Focus::Games,
+        Effect::NextGameStart,
+        &[Write::Pair {
+            at: Location {
+                hive: Hive::User,
+                key: r"Software\Microsoft\DirectX\UserGpuPreferences",
+                name: "DirectXUserGlobalSettings",
+            },
+            pair: "SwapEffectUpgradeEnable",
+            value: "1",
+        }],
+    ),
+    // `SPI_SETMOUSE` after the write makes it hold without a sign-in
+    item(
+        TweakId::PointerPrecisionOff,
+        Focus::Games,
+        Effect::Now,
+        &[
+            user(r"Control Panel\Mouse", "MouseSpeed", DataOf::Text("0")),
+            user(r"Control Panel\Mouse", "MouseThreshold1", DataOf::Text("0")),
+            user(r"Control Panel\Mouse", "MouseThreshold2", DataOf::Text("0")),
+        ],
+    ),
+    unchecked(item(
+        TweakId::PowerScheme,
+        Focus::Games,
+        Effect::Now,
+        &[Write::PowerScheme],
+    )),
+    item(
+        TweakId::EndTask,
+        Focus::Development,
+        Effect::Now,
+        &[user(
+            r"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarDeveloperSettings",
+            "TaskbarEndTask",
+            DataOf::Dword(1),
+        )],
+    ),
+    item(
+        TweakId::LongPaths,
+        Focus::Development,
+        Effect::NewPrograms,
+        &[machine(
+            r"SYSTEM\CurrentControlSet\Control\FileSystem",
+            "LongPathsEnabled",
+            DataOf::Dword(1),
+        )],
+    ),
+    item(
+        TweakId::ClipboardHistory,
+        Focus::Work,
+        Effect::Now,
+        &[user(
+            r"Software\Microsoft\Clipboard",
+            "EnableClipboardHistory",
+            DataOf::Dword(1),
+        )],
+    ),
+];
 
 /// Every setting, in the order the section lists them.
 pub const fn catalog() -> &'static [Tweak] {
-    &[]
+    &CATALOG
 }
 
 /// The setting of an id; `None` for an id the catalog no longer has.
