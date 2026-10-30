@@ -20,7 +20,10 @@ use crate::storage::Storage;
 pub enum Elevation {
     /// The user said no at the prompt
     Declined,
+    /// The elevated process never started: nothing was written
     Failed(String),
+    /// It started and its report did not come back: some writes may have happened
+    Unknown(String),
 }
 
 /// What a run does to the machine; Windows implements it, the tests fake it.
@@ -88,6 +91,12 @@ fn execute(
                 for step in &admin {
                     executed.failed.push((step.id, message.clone()));
                     executed.skipped.push(step.row);
+                }
+            }
+            // The rows stay: reverting a change that was never written puts back what is already there
+            Err(Elevation::Unknown(message)) => {
+                for step in &admin {
+                    executed.failed.push((step.id, message.clone()));
                 }
             }
             Ok(report) => {
@@ -311,6 +320,7 @@ mod tests {
         Yes,
         No,
         Broken,
+        Lost,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -431,7 +441,8 @@ mod tests {
             self.events.push(Event::Elevate(request.writes.clone()));
             match self.prompt {
                 Prompt::No => return Err(Elevation::Declined),
-                Prompt::Broken => return Err(Elevation::Failed("exit code 1".to_owned())),
+                Prompt::Broken => return Err(Elevation::Failed("could not start".to_owned())),
+                Prompt::Lost => return Err(Elevation::Unknown("exit code 1".to_owned())),
                 Prompt::Yes => {}
             }
             for write in &request.writes {
@@ -694,6 +705,35 @@ mod tests {
         assert_eq!(outcome.outcome, ChangeOutcome::Done);
         let run = storage.optimize_run(outcome.run.unwrap()).unwrap().unwrap();
         assert!(run.changes.iter().all(|one| one.id == TweakId::GameMode));
+        assert!(matches!(
+            outcome
+                .items
+                .iter()
+                .find(|item| item.id == TweakId::LongPaths)
+                .unwrap()
+                .result,
+            ItemResult::Failed { .. }
+        ));
+    }
+
+    #[test]
+    fn a_lost_elevation_keeps_its_journal_rows() {
+        let storage = Storage::in_memory().unwrap();
+        let mut machine = FakeMachine::new(before(), &storage);
+        machine.prompt = Prompt::Lost;
+        let outcome = apply(
+            &mut machine,
+            &storage,
+            &olegpc(),
+            &checked(&[TweakId::LongPaths, TweakId::GameMode]),
+            100,
+        )
+        .unwrap();
+        let run = storage.optimize_run(outcome.run.unwrap()).unwrap().unwrap();
+        assert!(
+            run.changes.iter().any(|one| one.id == TweakId::LongPaths),
+            "the admin write may have happened: its revert must stay possible"
+        );
         assert!(matches!(
             outcome
                 .items

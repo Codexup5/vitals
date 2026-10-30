@@ -572,6 +572,7 @@ impl Machine for Windows {
             Ok(Ok(report)) => Ok(report),
             Ok(Err(message)) => Err(Elevation::Failed(message)),
             Err(ElevatedError::Declined) => Err(Elevation::Declined),
+            Err(ElevatedError::Unknown(message)) => Err(Elevation::Unknown(message)),
             Err(error) => Err(Elevation::Failed(error.to_string())),
         }
     }
