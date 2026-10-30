@@ -13,6 +13,7 @@ mod legacy;
 mod logging;
 mod mcp;
 mod network;
+mod optimize;
 mod process;
 mod runners;
 mod scan;
