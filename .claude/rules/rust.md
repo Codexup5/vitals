@@ -44,6 +44,10 @@ A command is thin: no logic a test would need lives in it. A command added means
 - Deleting files follows the brief §3; its invariants are `cargo test` cases before any "Clean" button ships: the
   canonical path stays inside an allowed root, links and junctions are never followed, preview and run share one
   snapshot, a busy file is skipped, every clean is logged to `cleanup-log.jsonl`.
+- The optimizer changes only what the catalog compiled into the exe names; the old value is in the journal before
+  the write, and every change has a revert. Built-in apps are removed for the current user only, never from the image
+  and never one of the protected list; OneDrive only after its folder check. `--elevated` never writes HKCU: the user
+  hive is written by the normal process.
 - The panel never reboots the PC, never installs drivers, never touches HVCI, Defender, the pagefile or Microsoft
   services (the brief, §7).
 

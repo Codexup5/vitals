@@ -21,6 +21,9 @@ pub enum ElevatedError {
     Declined,
     #[error("the admin action failed: {0}")]
     Failed(String),
+    /// The action started but its report did not come back: it may have done some of its work
+    #[error("the admin action ended without a report: {0}")]
+    Unknown(String),
 }
 
 /// What an action does in the elevated process: the request in, the report out, as JSON.
@@ -31,6 +34,7 @@ fn action_of(name: &str) -> Option<Perform> {
         crate::cleanup::elevated::ACTION => Some(crate::cleanup::elevated::perform),
         crate::startup::elevated::ACTION => Some(crate::startup::elevated::perform),
         crate::services::elevated::ACTION => Some(crate::services::elevated::perform),
+        crate::optimize::elevated::ACTION => Some(crate::optimize::elevated::perform),
         _ => None,
     }
 }
@@ -86,12 +90,16 @@ pub fn run<Q: Serialize, R: DeserializeOwned>(
     match outcome {
         Elevated::Declined => Err(ElevatedError::Declined),
         Elevated::Failed(message) => Err(failed(message)),
-        Elevated::Exited(code) if code != 0 => Err(failed(format!("exit code {code}"))),
+        Elevated::Lost(message) => Err(ElevatedError::Unknown(message)),
+        Elevated::Exited(code) if code != 0 => {
+            Err(ElevatedError::Unknown(format!("exit code {code}")))
+        }
         Elevated::Exited(_) => {
+            let unknown = |message: String| ElevatedError::Unknown(message);
             let text =
-                std::fs::read_to_string(&report).map_err(|error| failed(error.to_string()))?;
+                std::fs::read_to_string(&report).map_err(|error| unknown(error.to_string()))?;
             let _ = std::fs::remove_file(&report);
-            serde_json::from_str(&text).map_err(|error| failed(error.to_string()))
+            serde_json::from_str(&text).map_err(|error| unknown(error.to_string()))
         }
     }
 }

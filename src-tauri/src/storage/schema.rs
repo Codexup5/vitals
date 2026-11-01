@@ -74,6 +74,18 @@ const MIGRATIONS: &[&str] = &[
        gpu_power REAL
      );",
     "ALTER TABLE sensor_samples ADD COLUMN cpu_temp REAL;",
+    "CREATE TABLE optimize_runs (
+       run INTEGER PRIMARY KEY AUTOINCREMENT,
+       time INTEGER NOT NULL
+     );
+     CREATE TABLE optimize_changes (
+       id INTEGER PRIMARY KEY AUTOINCREMENT,
+       run INTEGER NOT NULL REFERENCES optimize_runs (run) ON DELETE CASCADE,
+       item TEXT NOT NULL,
+       change TEXT NOT NULL,
+       reverted_at INTEGER
+     );
+     CREATE INDEX optimize_changes_run ON optimize_changes (run);",
 ];
 
 /// Moves the schema up one step at a time, each step under a write lock that reads the version again: the collector,

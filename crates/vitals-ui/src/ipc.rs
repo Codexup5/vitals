@@ -8,8 +8,11 @@ use vitals_ipc::{CommandErrorBody, CommandErrorKind};
 use crate::i18n::Locale;
 
 /// A command that has not answered by then is reported, not waited for.
-#[cfg(target_arch = "wasm32")]
 const DEADLINE_MS: u32 = 15_000;
+
+/// A command that waits for the UAC prompt and then for Windows (a restore point can take a minute): only a hung
+/// core is reported
+pub const UAC_DEADLINE_MS: u32 = 600_000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IpcErrorKind {
@@ -82,10 +85,23 @@ mod bridge {
 /// # Errors
 ///
 /// The kind the command reported, a timeout, an answer of another shape, or no core outside the Vitals window.
-#[cfg(target_arch = "wasm32")]
 pub async fn call<T: DeserializeOwned, A: Serialize>(
     command: &'static str,
     args: &A,
+) -> Result<T, IpcError> {
+    call_within(command, args, DEADLINE_MS).await
+}
+
+/// `call` with a deadline of its own.
+///
+/// # Errors
+///
+/// As `call`.
+#[cfg(target_arch = "wasm32")]
+pub async fn call_within<T: DeserializeOwned, A: Serialize>(
+    command: &'static str,
+    args: &A,
+    deadline_ms: u32,
 ) -> Result<T, IpcError> {
     use futures::future::{Either, select};
 
@@ -94,13 +110,13 @@ pub async fn call<T: DeserializeOwned, A: Serialize>(
         .serialize(&serializer)
         .map_err(|error| IpcError::new(IpcErrorKind::Invalid, format!("{command}: {error}")))?;
     let call = Box::pin(bridge::invoke(command, args));
-    let deadline = gloo_timers::future::TimeoutFuture::new(DEADLINE_MS);
+    let deadline = gloo_timers::future::TimeoutFuture::new(deadline_ms);
     let answer = match select(call, deadline).await {
         Either::Left((answer, _)) => answer,
         Either::Right(((), _)) => {
             return Err(IpcError::new(
                 IpcErrorKind::Timeout,
-                format!("{command}: no answer in {DEADLINE_MS} ms"),
+                format!("{command}: no answer in {deadline_ms} ms"),
             ));
         }
     };
@@ -125,9 +141,10 @@ pub async fn call<T: DeserializeOwned, A: Serialize>(
     clippy::unused_async,
     reason = "the same signature as the window build"
 )]
-pub async fn call<T: DeserializeOwned, A: Serialize>(
+pub async fn call_within<T: DeserializeOwned, A: Serialize>(
     command: &'static str,
     _args: &A,
+    _deadline_ms: u32,
 ) -> Result<T, IpcError> {
     Err(from_rejection(
         command,
